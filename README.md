@@ -1,6 +1,7 @@
 # devtap
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/killme2008/devtap.svg)](https://pkg.go.dev/github.com/killme2008/devtap)
+[![Latest Release](https://img.shields.io/github/v/release/killme2008/devtap)](https://github.com/killme2008/devtap/releases)
 [![CI](https://github.com/killme2008/devtap/actions/workflows/ci.yml/badge.svg)](https://github.com/killme2008/devtap/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/killme2008/devtap)](https://goreportcard.com/report/github.com/killme2008/devtap)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
