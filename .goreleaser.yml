@@ -7,7 +7,7 @@ before:
     - go mod tidy
 
 builds:
-  - main: ./cmd/devtap/main.go
+  - main: ./cmd/devtap/
     binary: devtap
     env:
       - CGO_ENABLED=0
