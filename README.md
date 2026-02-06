@@ -174,6 +174,19 @@ devtap --tag cargo-test --debounce 5s -- cargo watch -x test
 2. Project marker files (nearest parent with one of: `go.mod`, `package.json`, `pyproject.toml`, `Cargo.toml`, `pom.xml`, `build.gradle`, `build.gradle.kts`, `composer.json`, `Gemfile`, `setup.py`)
 3. Current working directory
 
+**Chaining commands** — `devtap` captures a single command after `--`. If you need shell operators like `&&`, wrap the command in a shell:
+
+```bash
+devtap -- sh -c "npm install && npm run dev"
+```
+
+Or run them separately:
+
+```bash
+devtap -- npm install
+devtap -- npm run dev
+```
+
 ## CLI Reference
 
 ```
