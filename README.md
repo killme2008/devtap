@@ -8,7 +8,7 @@
 
 Bridge build/dev process output to AI coding sessions automatically.
 
-`devtap` captures stdout/stderr from build and development commands, then feeds them into AI coding tool sessions via [MCP](https://modelcontextprotocol.io/) (Model Context Protocol).
+`devtap` captures stdout/stderr from build and development commands, then feeds them into AI coding tool sessions via [MCP](https://modelcontextprotocol.io/) (Model Context Protocol). It can also fan out the same output to multiple coding agents. Each agent drains its own copy so parallel sessions don't interfere.
 
 ## The Problem
 
