@@ -115,7 +115,7 @@ func (s *Server) toolDefinitions() []Tool {
 	return []Tool{
 		{
 			Name:        "get_build_errors",
-			Description: "Get pending build errors and output captured by devtap. Call this before writing or editing code to check for build failures that need fixing.",
+			Description: "Get pending build errors and output captured by devtap. Call this at the start of each task and before writing or editing code to check for build failures that need fixing. A separate terminal may have captured new build errors or user messages at any time.",
 			InputSchema: InputSchema{
 				Type:       "object",
 				Properties: map[string]Property{},
@@ -123,7 +123,7 @@ func (s *Server) toolDefinitions() []Tool {
 		},
 		{
 			Name:        "get_build_status",
-			Description: "Get a summary of pending build output counts across all sessions.",
+			Description: "Get a summary of pending build output counts for the current session.",
 			InputSchema: InputSchema{
 				Type:       "object",
 				Properties: map[string]Property{},
@@ -180,21 +180,17 @@ func (s *Server) handleGetBuildStatus(id any) {
 		return
 	}
 
-	if len(counts) == 0 {
+	count := counts[s.sessionID]
+	if count == 0 {
 		s.sendResult(id, CallToolResult{
-			Content: []ContentBlock{{Type: "text", Text: "No pending messages."}},
+			Content: []ContentBlock{{Type: "text", Text: "No pending build output."}},
 		})
 		return
 	}
 
-	var sb strings.Builder
-	sb.WriteString("Pending build output:\n")
-	for session, count := range counts {
-		sb.WriteString(fmt.Sprintf("  %s: %d message(s)\n", session, count))
-	}
-
+	text := fmt.Sprintf("Pending build output: %d message(s).", count)
 	s.sendResult(id, CallToolResult{
-		Content: []ContentBlock{{Type: "text", Text: sb.String()}},
+		Content: []ContentBlock{{Type: "text", Text: text}},
 	})
 }
 

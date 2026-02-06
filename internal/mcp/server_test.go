@@ -248,8 +248,8 @@ func TestGetBuildStatus(t *testing.T) {
 	var out bytes.Buffer
 	ms := &mockStore{
 		counts: map[string]int{
-			"session-a": 3,
-			"session-b": 1,
+			"test-session":  3,
+			"other-session": 1,
 		},
 	}
 
@@ -270,11 +270,12 @@ func TestGetBuildStatus(t *testing.T) {
 	_ = json.Unmarshal(raw, &result)
 
 	text := result.Content[0].Text
-	if !strings.Contains(text, "session-a") {
-		t.Error("should contain session-a")
-	}
 	if !strings.Contains(text, "3 message(s)") {
-		t.Error("should contain count for session-a")
+		t.Errorf("should show count for current session, got %q", text)
+	}
+	// Should NOT include other sessions
+	if strings.Contains(text, "other-session") {
+		t.Error("should not include other sessions")
 	}
 }
 

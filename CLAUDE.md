@@ -70,5 +70,12 @@ AI tool          ←  MCP server (get_build_errors) ←  store.Drain()  ←  per
 <!-- devtap:start -->
 ## devtap
 
-Get pending build errors and output captured by devtap. Call this before writing or editing code to check for build failures that need fixing.
+devtap captures build/dev output from a separate terminal and delivers it here via MCP.
+
+**You MUST call get_build_errors in these situations:**
+- At the start of each new task or conversation turn
+- Before writing or editing any code
+- After being told that a build, test, or dev server has new output
+
+Do not assume there are no errors — always check. Build output may arrive at any time from a parallel terminal.
 <!-- devtap:end -->

@@ -169,6 +169,11 @@ devtap --tag cargo-test --debounce 5s -- cargo watch -x test
 
 **Multi-adapter fan-out** — when multiple AI tools are installed, build output is automatically delivered to all of them. Each tool independently consumes its own copy.
 
+**Session auto-detection** — when `--session auto` (default), devtap resolves the project directory like this:
+1. Git root (nearest parent with `.git`)
+2. Project marker files (nearest parent with one of: `go.mod`, `package.json`, `pyproject.toml`, `Cargo.toml`, `pom.xml`, `build.gradle`, `build.gradle.kts`, `composer.json`, `Gemfile`, `setup.py`)
+3. Current working directory
+
 ## CLI Reference
 
 ```
