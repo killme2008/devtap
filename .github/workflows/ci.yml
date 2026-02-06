@@ -27,12 +27,6 @@ jobs:
 
   integration-test:
     runs-on: ubuntu-latest
-    services:
-      greptimedb:
-        image: greptime/greptimedb:latest
-        ports:
-          - 4001:4001
-          - 4002:4002
     steps:
       - uses: actions/checkout@v4
 
@@ -40,10 +34,18 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Start GreptimeDB
+        run: |
+          docker run -d --name greptimedb \
+            -p 4001:4001 -p 4002:4002 \
+            greptime/greptimedb:latest standalone start \
+            --rpc-bind-addr 0.0.0.0:4001 \
+            --mysql-addr 0.0.0.0:4002
+
       - name: Wait for GreptimeDB
         run: |
           for i in $(seq 1 30); do
-            if bash -c 'echo > /dev/tcp/127.0.0.1/4002' 2>/dev/null; then
+            if nc -z 127.0.0.1 4002 2>/dev/null; then
               echo "GreptimeDB is ready"
               exit 0
             fi
@@ -51,6 +53,7 @@ jobs:
             sleep 2
           done
           echo "GreptimeDB failed to start"
+          docker logs greptimedb
           exit 1
 
       - name: Integration Test (GreptimeDB)
@@ -65,6 +68,8 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+      - name: Lint
+        run: golangci-lint run ./...
