@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test ./... -race -count=1
+
+  integration-test:
+    runs-on: ubuntu-latest
+    services:
+      greptimedb:
+        image: greptime/greptimedb:latest
+        ports:
+          - 4001:4001
+          - 4002:4002
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Wait for GreptimeDB
+        run: |
+          for i in $(seq 1 30); do
+            if bash -c 'echo > /dev/tcp/127.0.0.1/4002' 2>/dev/null; then
+              echo "GreptimeDB is ready"
+              exit 0
+            fi
+            echo "Waiting for GreptimeDB... ($i/30)"
+            sleep 2
+          done
+          echo "GreptimeDB failed to start"
+          exit 1
+
+      - name: Integration Test (GreptimeDB)
+        run: go test -tags=integration -v ./internal/store/greptimedb/
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest

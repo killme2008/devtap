@@ -1,0 +1,22 @@
+version: "2"
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+linters:
+  default: standard
+  enable:
+    - misspell
+    - unconvert
+  settings:
+    errcheck:
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Print
+        - fmt.Printf
+        - fmt.Println
+        - fmt.Scanln

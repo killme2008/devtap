@@ -1,0 +1,22 @@
+# Build output
+devtap
+dist/
+
+# devtap adapter configs
+.mcp.json
+.codex/
+opencode.json
+.devtap-aider-lint.sh
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test
+coverage.out

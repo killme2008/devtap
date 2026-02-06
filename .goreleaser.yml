@@ -1,0 +1,54 @@
+version: 2
+
+project_name: devtap
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: ./cmd/devtap
+    binary: devtap
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+
+brews:
+  - repository:
+      owner: killme2008
+      name: homebrew-tap
+    directory: Formula
+    homepage: "https://github.com/killme2008/devtap"
+    description: "Bridge build/dev process output to AI coding sessions"
+    license: "Apache-2.0"
+    install: |
+      bin.install "devtap"
+    test: |
+      system "#{bin}/devtap", "--version"

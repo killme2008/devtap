@@ -1,0 +1,21 @@
+# devtap configuration
+# Copy to ~/.devtap/config.toml and modify as needed.
+
+[store]
+# Storage backend: "file" (default, zero-dependency) or "greptimedb"
+backend = "file"
+
+[store.greptimedb]
+# gRPC endpoint for log ingestion
+endpoint = "127.0.0.1:4001"
+
+# MySQL protocol endpoint for SQL queries (drain, status, history)
+mysql_endpoint = "127.0.0.1:4002"
+
+# Database name
+database = "devtap"
+
+# Credentials via environment variables (never put secrets in config):
+#   DEVTAP_GREPTIMEDB_USERNAME=...
+#   DEVTAP_GREPTIMEDB_PASSWORD=...
+#   DEVTAP_GREPTIMEDB_AUTH_TOKEN=...
