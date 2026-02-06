@@ -14,6 +14,11 @@ Bridge build/dev process output to AI coding sessions automatically.
 
 In vibe coding workflows, you run an AI coding tool in one terminal and build commands in another. When errors occur, you manually copy-paste logs into the coding session. `devtap` automates this feedback loop.
 
+Two common cases make this especially painful:
+
+1. Multiple local dev processes (frontend + backend + worker) that you need to keep an eye on and fix quickly.
+2. Multiple coding agents working on the same project, where you want them to analyze the same failures in parallel and compare findings.
+
 ## Quick Start
 
 ### Install
@@ -135,7 +140,7 @@ docker run -d \
 The container runs in the background (`-d`) and auto-starts with Docker (`--restart unless-stopped`). The `-v` flag mounts `~/.devtap/greptimedb_data/` for persistent storage.
 
 ```bash
-# Configure in ~/.devtap/config.toml
+# Configure in ~/.devtap/config.toml (this becomes the default store)
 cat > ~/.devtap/config.toml <<EOF
 [store]
 backend = "greptimedb"
@@ -146,14 +151,17 @@ mysql_endpoint = "127.0.0.1:4002"
 database = "public"
 EOF
 
-# Or override per-command
-devtap --store greptimedb -- cargo check
+# Now devtap uses GreptimeDB by default
+devtap -- cargo check
 
 # SQL-based filtering
-devtap drain --store greptimedb --filter-sql "content LIKE '%error%'"
+devtap drain --filter-sql "content LIKE '%error%'"
 
 # Query build error history
 devtap history --since 24h
+
+# Or override per-command (e.g., fall back to file store)
+devtap --store file -- cargo check
 
 # View logs in GreptimeDB dashboard
 open http://127.0.0.1:4000/dashboard/#/dashboard/logs-query
