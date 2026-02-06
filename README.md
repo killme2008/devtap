@@ -21,6 +21,12 @@ In vibe coding workflows, you run an AI coding tool in one terminal and build co
 go install github.com/killme2008/devtap/cmd/devtap@latest
 ```
 
+Or install via Homebrew:
+
+```bash
+brew install killme2008/tap/devtap
+```
+
 Or download from [GitHub Releases](https://github.com/killme2008/devtap/releases).
 
 ### Setup
