@@ -13,7 +13,7 @@ endpoint = "127.0.0.1:4001"
 mysql_endpoint = "127.0.0.1:4002"
 
 # Database name
-database = "devtap"
+database = "public"
 
 # Credentials via environment variables (never put secrets in config):
 #   DEVTAP_GREPTIMEDB_USERNAME=...

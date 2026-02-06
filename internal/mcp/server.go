@@ -163,6 +163,7 @@ func (s *Server) handleGetBuildErrors(id any) {
 		return
 	}
 
+	messages = TruncateMessages(messages, s.maxLines)
 	text := FormatMessages(messages)
 	s.sendResult(id, CallToolResult{
 		Content: []ContentBlock{{Type: "text", Text: text}},

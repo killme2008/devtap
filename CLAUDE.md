@@ -41,10 +41,11 @@ AI tool          ←  MCP server (get_build_errors) ←  store.Drain()  ←  per
 - **File** (default): JSONL at `~/.devtap/<session>/<adapter>/pending.jsonl`, atomic rename for IPC
 - **GreptimeDB** (optional): SQL queries + watermark cursor, `tag` is a reserved keyword and must be backtick-quoted in all SQL
 
-**Adapter** (`internal/adapter/adapter.go`): Name/DiscoverSessions/Install. Four implementations:
+**Adapter** (`internal/adapter/adapter.go`): Name/DiscoverSessions/Install. Five implementations:
 - **claudecode**: `.mcp.json` + optional Stop hook in `~/.claude/settings.json`
 - **codex**: `.codex/config.toml`
 - **opencode**: `opencode.json`
+- **gemini**: `.gemini/settings.json`
 - **aider**: lint wrapper script (no MCP)
 
 ### Key Patterns
@@ -55,13 +56,15 @@ AI tool          ←  MCP server (get_build_errors) ←  store.Drain()  ←  per
 - **Instruction injection**: Appends `<!-- devtap:start -->` / `<!-- devtap:end -->` block to project instruction files. Idempotent via marker detection.
 - **Session encoding**: `session.EncodeDir("/foo/bar")` → `"-foo-bar"`, shared across adapters.
 - **Capture modes**: `runner.go` (batch, flush every 50 lines) vs `longrun.go` (debounce timer, for dev servers).
-- **Scanner buffers**: 64KB initial / 1MB max (`internal/capture/errors.go`).
+- **Scanner buffers**: 64KB initial / 1MB max (`internal/capture/errors.go`). On scanner error (line >1MB), pipe is drained to discard to prevent child process deadlock.
+- **Line-level truncation**: `mcp.TruncateMessages()` allocates line budget proportionally across messages. Applied in both MCP server and drain command.
 
 ### GreptimeDB Specifics
 
-- Composite `PRIMARY KEY (session_id, \`tag\`, stream)` clause (not inline per-column)
+- Composite `PRIMARY KEY (session_id, \`tag\`, stream, adapter)` clause (not inline per-column)
 - `TIMESTAMP(6)` microsecond precision to avoid PK collisions
-- SQL injection protection via `validateFilterSQL` in drain
+- `append_mode=true` allows duplicate PKs
+- SQL injection protection via `validateFilterSQL` in drain (best-effort blocklist, not a security boundary)
 - Integration tests gated behind `//go:build integration`
 
 <!-- devtap:start -->

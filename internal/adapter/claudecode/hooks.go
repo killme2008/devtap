@@ -87,7 +87,7 @@ func installStopHook(config adapter.InstallConfig) error {
 	if maxRetries <= 0 {
 		maxRetries = 5
 	}
-	stopCmd := fmt.Sprintf("%s drain --event Stop --auto-loop --max-retries %d", binPath, maxRetries)
+	stopCmd := fmt.Sprintf("\"%s\" drain --event Stop --auto-loop --max-retries %d", binPath, maxRetries)
 	hooks["Stop"] = upsertMatcherGroup(hooks["Stop"], "", stopCmd)
 
 	settings["hooks"] = hooks

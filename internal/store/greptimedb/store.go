@@ -145,6 +145,11 @@ func (s *Store) Write(sessionID string, msg store.LogMessage) error {
 }
 
 // Drain reads pending messages since the last watermark for a session.
+//
+// Known limitation: the watermark is set to the max timestamp of returned rows.
+// If more than maxLines rows share the exact same microsecond timestamp, rows
+// beyond the limit are skipped. This is practically unreachable given TIMESTAMP(6)
+// microsecond precision and the default 10000-row limit.
 func (s *Store) Drain(sessionID string, maxLines int) ([]store.LogMessage, error) {
 	query := fmt.Sprintf(
 		"SELECT ts, `tag`, `stream`, adapter, content, exit_code FROM %s WHERE session_id = ? AND adapter = ? AND ts > ? ORDER BY ts ASC LIMIT ?",
@@ -165,10 +170,15 @@ func (s *Store) DrainSQL(sessionID string, filterSQL string, maxLines int) ([]st
 	return s.drainWithQuery(sessionID, maxLines, query)
 }
 
-// validateFilterSQL rejects SQL filter expressions that contain dangerous statements.
+// validateFilterSQL is a best-effort blocklist for --filter-sql expressions.
+// This is NOT a security boundary — the user already has local CLI and DB access.
+// It prevents accidental misuse, not adversarial injection.
 func validateFilterSQL(sql string) error {
 	upper := strings.ToUpper(sql)
-	for _, keyword := range []string{"DROP ", "DELETE ", "INSERT ", "UPDATE ", "ALTER ", "CREATE ", "TRUNCATE ", "GRANT ", "REVOKE "} {
+	for _, keyword := range []string{
+		"DROP ", "DELETE ", "INSERT ", "UPDATE ", "ALTER ", "CREATE ",
+		"TRUNCATE ", "GRANT ", "REVOKE ", "UNION ", "SELECT ",
+	} {
 		if strings.Contains(upper, keyword) {
 			return fmt.Errorf("filter-sql must be a WHERE clause expression, not a statement (found %q)", strings.TrimSpace(keyword))
 		}
@@ -191,7 +201,7 @@ func (s *Store) drainWithQuery(sessionID string, maxLines int, query string) ([]
 	}
 
 	if maxLines <= 0 {
-		maxLines = 100
+		maxLines = 10000
 	}
 
 	watermark, err := s.loadWatermark(sessionID)

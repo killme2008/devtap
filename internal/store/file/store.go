@@ -14,7 +14,7 @@ import (
 const (
 	pendingFile    = "pending.jsonl"
 	drainingFile   = "pending.jsonl.draining"
-	defaultMaxLen  = 100
+	defaultMaxLen  = 10000
 	scannerInitBuf = 64 * 1024   // 64 KB initial scanner buffer
 	scannerMaxBuf  = 1024 * 1024 // 1 MB max scanner buffer
 )

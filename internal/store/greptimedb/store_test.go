@@ -79,6 +79,8 @@ func TestValidateFilterSQL(t *testing.T) {
 		{"DELETE FROM devtap_logs WHERE 1=1", "DELETE keyword"},
 		{"content LIKE '%x%'; INSERT INTO foo VALUES(1)", "semicolon with INSERT"},
 		{"UPDATE devtap_logs SET content=''", "UPDATE keyword"},
+		{"1=1) UNION SELECT 1,2,3,4,5,6 --", "UNION injection"},
+		{"SELECT 1", "bare SELECT"},
 	}
 	for _, tt := range invalid {
 		if err := validateFilterSQL(tt.sql); err == nil {

@@ -38,11 +38,10 @@ func NewLongRunner(s store.Store, sessionID, tag string, filter LineFilter, debo
 // Run executes the command and captures output with debounced flushing.
 // It forwards signals (SIGINT, SIGTERM) to the child process.
 func (r *LongRunner) Run(args []string) (*RunResult, error) {
-	if len(args) == 0 {
-		return nil, errNoCommand
+	cmd, err := buildCommand(args)
+	if err != nil {
+		return nil, err
 	}
-
-	cmd := exec.Command(args[0], args[1:]...)
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -61,14 +60,23 @@ func (r *LongRunner) Run(args []string) (*RunResult, error) {
 	// Forward signals to child process
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	sigDone := make(chan struct{})
 	go func() {
-		for sig := range sigCh {
-			if cmd.Process != nil {
-				_ = cmd.Process.Signal(sig)
+		for {
+			select {
+			case sig := <-sigCh:
+				if cmd.Process != nil {
+					_ = cmd.Process.Signal(sig)
+				}
+			case <-sigDone:
+				return
 			}
 		}
 	}()
-	defer signal.Stop(sigCh)
+	defer func() {
+		signal.Stop(sigCh)
+		close(sigDone)
+	}()
 
 	// Debounce buffers
 	var mu sync.Mutex
@@ -155,6 +163,12 @@ func (r *LongRunner) captureStreamDebounced(pipe io.ReadCloser, passthrough *os.
 		mu.Lock()
 		*buf = append(*buf, line)
 		mu.Unlock()
+	}
+
+	// If the scanner hit a line exceeding ScannerMaxBuf, drain the pipe
+	// so the child process doesn't block on a full pipe buffer.
+	if scanner.Err() != nil {
+		_, _ = io.Copy(io.Discard, pipe)
 	}
 }
 

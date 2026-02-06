@@ -17,7 +17,7 @@ func TestDefault(t *testing.T) {
 	if cfg.Store.GreptimeDB.MySQLEndpoint != "127.0.0.1:4002" {
 		t.Errorf("default MySQL endpoint: got %q", cfg.Store.GreptimeDB.MySQLEndpoint)
 	}
-	if cfg.Store.GreptimeDB.Database != "devtap" {
+	if cfg.Store.GreptimeDB.Database != "public" {
 		t.Errorf("default database: got %q", cfg.Store.GreptimeDB.Database)
 	}
 }

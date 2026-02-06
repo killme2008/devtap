@@ -23,7 +23,7 @@ type StoreConfig struct {
 type GreptimeDBConfig struct {
 	Endpoint      string `toml:"endpoint"`       // gRPC endpoint for ingestion (default "127.0.0.1:4001")
 	MySQLEndpoint string `toml:"mysql_endpoint"` // MySQL protocol endpoint for queries (default "127.0.0.1:4002")
-	Database      string `toml:"database"`       // database name (default "devtap")
+	Database      string `toml:"database"`       // database name (default "public")
 }
 
 // Default returns the default configuration.
@@ -34,7 +34,7 @@ func Default() *Config {
 			GreptimeDB: GreptimeDBConfig{
 				Endpoint:      "127.0.0.1:4001",
 				MySQLEndpoint: "127.0.0.1:4002",
-				Database:      "devtap",
+				Database:      "public",
 			},
 		},
 	}

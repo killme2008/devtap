@@ -40,11 +40,10 @@ type RunResult struct {
 // Run executes the given command, captures stdout/stderr, passes them through
 // to the terminal transparently, and writes captured output to the store.
 func (r *Runner) Run(args []string) (*RunResult, error) {
-	if len(args) == 0 {
-		return nil, errNoCommand
+	cmd, err := buildCommand(args)
+	if err != nil {
+		return nil, err
 	}
-
-	cmd := exec.Command(args[0], args[1:]...)
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -125,6 +124,12 @@ func (r *Runner) captureStream(pipe io.ReadCloser, passthrough *os.File, stream 
 	// Flush remaining
 	if len(batch) > 0 {
 		r.flushBatch(batch, stream)
+	}
+
+	// If the scanner hit a line exceeding ScannerMaxBuf, drain the pipe
+	// so the child process doesn't block on a full pipe buffer.
+	if scanner.Err() != nil {
+		_, _ = io.Copy(io.Discard, pipe)
 	}
 }
 

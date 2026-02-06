@@ -48,7 +48,7 @@ brews:
     directory: Formula
     homepage: "https://github.com/killme2008/devtap"
     description: "Bridge build/dev process output to AI coding sessions"
-    license: "Apache-2.0"
+    license: "MIT"
     install: |
       bin.install "devtap"
     test: |

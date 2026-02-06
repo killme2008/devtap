@@ -1,6 +1,7 @@
 package capture
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -145,6 +146,110 @@ func TestRunStderr(t *testing.T) {
 	}
 	if !hasStderr {
 		t.Error("expected stderr capture")
+	}
+}
+
+func TestBuildCommand(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantCmd string
+		wantEnv []string
+		wantErr bool
+	}{
+		{
+			name:    "simple command",
+			args:    []string{"echo", "hello"},
+			wantCmd: "echo",
+		},
+		{
+			name:    "leading env vars",
+			args:    []string{"VITE_LANG=zh", "NODE_ENV=dev", "pnpm", "dev"},
+			wantCmd: "pnpm",
+			wantEnv: []string{"VITE_LANG=zh", "NODE_ENV=dev"},
+		},
+		{
+			name:    "no command after env vars",
+			args:    []string{"FOO=bar"},
+			wantErr: true,
+		},
+		{
+			name:    "empty args",
+			args:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "path-like arg not treated as env",
+			args:    []string{"/usr/bin/echo", "hi"},
+			wantCmd: "/usr/bin/echo",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd, err := buildCommand(tt.args)
+			if tt.wantErr {
+				if err == nil {
+					t.Error("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("buildCommand: %v", err)
+			}
+			if cmd.Path == "" {
+				t.Fatal("cmd.Path is empty")
+			}
+			if tt.wantCmd != "" && cmd.Args[0] != tt.wantCmd {
+				t.Errorf("cmd.Args[0]: got %q, want %q", cmd.Args[0], tt.wantCmd)
+			}
+			for _, want := range tt.wantEnv {
+				found := false
+				for _, e := range cmd.Env {
+					if e == want {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("env %q not found in cmd.Env", want)
+				}
+			}
+		})
+	}
+}
+
+func TestRunWithEnvVars(t *testing.T) {
+	dir := t.TempDir()
+	s, err := filestore.New(dir, "test")
+	if err != nil {
+		t.Fatalf("New store: %v", err)
+	}
+
+	runner := New(s, "test-session", "sh", nil)
+	result, err := runner.Run([]string{"DEVTAP_TEST_VAR=hello123", "sh", "-c", "echo $DEVTAP_TEST_VAR"})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if result.ExitCode != 0 {
+		t.Errorf("expected exit code 0, got %d", result.ExitCode)
+	}
+
+	messages, err := s.Drain("test-session", 100)
+	if err != nil {
+		t.Fatalf("Drain: %v", err)
+	}
+
+	var found bool
+	for _, msg := range messages {
+		for _, line := range msg.Lines {
+			if strings.Contains(line, "hello123") {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Error("expected env var DEVTAP_TEST_VAR=hello123 to be visible in output")
 	}
 }
 
