@@ -1,6 +1,6 @@
 ---
 name: devtap-get-build-errors
-description: Fetch pending devtap build/dev output for the current turn using get_build_status and get_build_errors, then present the captured output verbatim. Use when the user asks to check build errors, latest build logs, or "/get_build_error"-style actions.
+description: Fetch pending devtap build/dev output for the current turn using get_build_status and get_build_errors, then present the captured output verbatim. Use when the user asks to check build errors, latest build logs, or "/get_build_errors"-style actions.
 metadata:
   short-description: Fetch devtap output
 ---
