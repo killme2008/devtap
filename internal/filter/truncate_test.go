@@ -35,8 +35,32 @@ func TestTruncateWithDuplicates(t *testing.T) {
 	}
 }
 
+func TestTruncateTailBiased(t *testing.T) {
+	// 20 distinct lines, maxLines=10 → with 0.8 tail ratio: 2 head + 8 tail
+	lines := make([]string, 20)
+	for i := range lines {
+		lines[i] = fmt.Sprintf("line-%d", i)
+	}
+
+	result := Truncate(lines, 10)
+
+	// 2 head + 1 omission + 8 tail = 11 entries
+	if len(result) != 11 {
+		t.Fatalf("expected 11 lines, got %d: %v", len(result), result)
+	}
+	if result[0] != "line-0" || result[1] != "line-1" {
+		t.Errorf("head: got %q, %q", result[0], result[1])
+	}
+	if result[2] != "... (10 lines omitted)" {
+		t.Errorf("omission: got %q", result[2])
+	}
+	if result[3] != "line-12" || result[10] != "line-19" {
+		t.Errorf("tail: got first=%q last=%q", result[3], result[10])
+	}
+}
+
 func TestTruncateDistinctLines(t *testing.T) {
-	// 20 distinct lines should be truncated to head + omission + tail
+	// 20 distinct lines, maxLines=6 → with 0.8 tail ratio: 2 head + 4 tail (int(6*0.8)=4)
 	lines := make([]string, 20)
 	for i := range lines {
 		lines[i] = fmt.Sprintf("line-%d", i)
@@ -44,19 +68,48 @@ func TestTruncateDistinctLines(t *testing.T) {
 
 	result := Truncate(lines, 6)
 
-	// Should have 3 head + 1 omission + 3 tail = 7
-	found := false
-	for _, line := range result {
-		if line == "... (14 lines omitted)" {
-			found = true
-			break
-		}
+	// head=2 (6-4), tail=4 → 2 head + 1 omission + 4 tail = 7
+	if len(result) != 7 {
+		t.Fatalf("expected 7 lines, got %d: %v", len(result), result)
 	}
-	if !found {
-		t.Errorf("expected omission marker in result: %v", result)
+	if result[2] != "... (14 lines omitted)" {
+		t.Errorf("expected omission marker, got %q", result[2])
 	}
-	if len(result) > 7 {
-		t.Errorf("expected <= 7 lines, got %d", len(result))
+	// Tail should end with the last line
+	if result[6] != "line-19" {
+		t.Errorf("last line should be line-19, got %q", result[6])
+	}
+}
+
+func TestTruncateSingleLine(t *testing.T) {
+	result := Truncate([]string{"only"}, 1)
+	if len(result) != 1 || result[0] != "only" {
+		t.Errorf("unexpected result: %v", result)
+	}
+}
+
+func TestTruncateSingleMax(t *testing.T) {
+	lines := []string{"a", "b", "c"}
+	result := Truncate(lines, 1)
+	// maxLines=1: return only the last line, no omission marker
+	if len(result) != 1 {
+		t.Fatalf("expected 1 line, got %d: %v", len(result), result)
+	}
+	if result[0] != "c" {
+		t.Errorf("expected last line %q, got %q", "c", result[0])
+	}
+}
+
+func TestTruncateSingleMaxWithDuplicates(t *testing.T) {
+	// maxLines=1 with repeated lines should return the last real line,
+	// not a "(repeated N times)" marker from dedup.
+	lines := []string{"error: foo", "error: foo", "error: foo"}
+	result := Truncate(lines, 1)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 line, got %d: %v", len(result), result)
+	}
+	if result[0] != "error: foo" {
+		t.Errorf("expected last real line, got %q", result[0])
 	}
 }
 
@@ -87,12 +140,5 @@ func TestDedupEmpty(t *testing.T) {
 	result := dedup(nil)
 	if len(result) != 0 {
 		t.Errorf("expected 0 lines, got %d", len(result))
-	}
-}
-
-func TestTruncateSingleLine(t *testing.T) {
-	result := Truncate([]string{"only"}, 1)
-	if len(result) != 1 || result[0] != "only" {
-		t.Errorf("unexpected result: %v", result)
 	}
 }

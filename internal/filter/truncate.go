@@ -2,23 +2,43 @@ package filter
 
 import "fmt"
 
+// tailRatio is the fraction of the line budget allocated to the tail.
+// Build errors typically appear at the end, so we keep 80% tail / 20% head.
+const tailRatio = 0.8
+
 // Truncate applies smart truncation to a list of lines:
-// - If lines exceed maxLines, keeps head and tail with an omission notice in between.
-// - Merges consecutive duplicate lines into "(repeated N times)" markers.
+//   - Merges consecutive duplicate lines into "(repeated N times)" markers.
+//   - If lines exceed maxLines, keeps head and tail with an omission notice in between.
+//   - Tail-biased: 80% of the budget goes to the tail where errors typically appear.
+//
 // maxLines <= 0 means no truncation.
 func Truncate(lines []string, maxLines int) []string {
+	if maxLines <= 0 {
+		return dedup(lines)
+	}
+
+	// Budget=1: no room for head + omission marker + tail. Just keep the last line.
+	// Done before dedup to avoid returning a "(repeated N times)" marker.
+	if maxLines == 1 && len(lines) > 1 {
+		return lines[len(lines)-1:]
+	}
+
 	lines = dedup(lines)
 
-	if maxLines <= 0 || len(lines) <= maxLines {
+	if len(lines) <= maxLines {
 		return lines
 	}
 
-	// Keep roughly half at the head and half at the tail
-	head := maxLines / 2
-	tail := maxLines - head
+	tail := int(float64(maxLines) * tailRatio)
+	head := maxLines - tail
+	// Ensure at least 1 line on each side.
 	if tail == 0 {
 		tail = 1
 		head = maxLines - 1
+	}
+	if head == 0 {
+		head = 1
+		tail = maxLines - 1
 	}
 
 	omitted := len(lines) - head - tail

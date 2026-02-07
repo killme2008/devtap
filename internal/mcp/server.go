@@ -135,7 +135,7 @@ func (s *Server) toolDefinitions() []Tool {
 	return []Tool{
 		{
 			Name:        "get_build_errors",
-			Description: "Get pending build errors and output captured by devtap. Call this at the start of each task and before writing or editing code to check for build failures that need fixing. A separate terminal may have captured new build errors or user messages at any time. Always present the full captured output to the user verbatim — do not summarize, omit, or reinterpret any content, even if the build succeeded.",
+			Description: "Get pending build errors and output captured by devtap. Call this at the start of each task and before writing or editing code to check for build failures that need fixing. A separate terminal may have captured new build errors or user messages at any time. If build succeeded, acknowledge briefly without repeating the output. If build failed, present the error output verbatim — do not summarize or reinterpret error content.",
 			InputSchema: InputSchema{
 				Type:       "object",
 				Properties: map[string]Property{},
@@ -233,6 +233,7 @@ func (s *Server) handleGetBuildErrors(id any) {
 		return
 	}
 
+	allMessages = CollapseSuccessful(allMessages)
 	allMessages = TruncateMessages(allMessages, s.maxLines)
 	text := FormatMessages(allMessages)
 

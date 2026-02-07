@@ -110,6 +110,7 @@ func runDrain(cmd *cobra.Command, args []string) error {
 		allMessages = mcp.DedupMessages(allMessages)
 	}
 
+	allMessages = mcp.CollapseSuccessful(allMessages)
 	allMessages = mcp.TruncateMessages(allMessages, maxLines)
 
 	// Handle auto-loop Stop hook (Claude Code specific)
@@ -179,6 +180,7 @@ func runDrainSingleSource(cmd *cobra.Command, filterSQL string, maxLines int, ev
 		return fmt.Errorf("drain: %w", err)
 	}
 
+	messages = mcp.CollapseSuccessful(messages)
 	messages = mcp.TruncateMessages(messages, maxLines)
 
 	if event == "Stop" && autoLoop {
