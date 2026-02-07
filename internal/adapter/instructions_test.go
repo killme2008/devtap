@@ -92,7 +92,7 @@ func TestAppendInstruction(t *testing.T) {
 		}
 	})
 
-	t.Run("skips when marker already present", func(t *testing.T) {
+	t.Run("no-op when existing block is identical", func(t *testing.T) {
 		f := filepath.Join(t.TempDir(), "CLAUDE.md")
 		original := "# Project\n\n" + block + "\n"
 		_ = os.WriteFile(f, []byte(original), 0o644)
@@ -102,12 +102,43 @@ func TestAppendInstruction(t *testing.T) {
 			t.Fatal(err)
 		}
 		if modified {
-			t.Error("expected modified=false when marker exists")
+			t.Error("expected modified=false when block is unchanged")
 		}
 
 		data, _ := os.ReadFile(f)
 		if string(data) != original {
 			t.Error("content was modified")
+		}
+	})
+
+	t.Run("replaces existing devtap block when content changed", func(t *testing.T) {
+		f := filepath.Join(t.TempDir(), "CLAUDE.md")
+		oldBlock := `<!-- devtap:start -->
+## devtap
+
+old instructions
+<!-- devtap:end -->`
+		original := "# Project\n\n" + oldBlock + "\n\n## Notes\nKeep this.\n"
+		_ = os.WriteFile(f, []byte(original), 0o644)
+
+		modified, err := AppendInstruction(f, block)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !modified {
+			t.Error("expected modified=true when replacing old block")
+		}
+
+		data, _ := os.ReadFile(f)
+		content := string(data)
+		if !strings.Contains(content, block) {
+			t.Error("new block not found")
+		}
+		if strings.Contains(content, "old instructions") {
+			t.Error("old block content still present")
+		}
+		if !strings.Contains(content, "## Notes\nKeep this.") {
+			t.Error("content after block should be preserved")
 		}
 	})
 

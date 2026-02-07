@@ -10,6 +10,7 @@ type LogMessage struct {
 	Lines     []string  `json:"lines"`
 	ExitCode  *int      `json:"exit_code,omitempty"`
 	Adapter   string    `json:"adapter,omitempty"`
+	Host      string    `json:"host,omitempty"`
 }
 
 // Store abstracts the log storage and retrieval mechanism.

@@ -140,6 +140,7 @@ func (r *LongRunner) Run(args []string) (*RunResult, error) {
 		Tag:       r.tag,
 		Stream:    "exit",
 		ExitCode:  &ec,
+		Host:      cachedHostname,
 	}))
 
 	return &RunResult{ExitCode: exitCode}, nil
@@ -186,5 +187,6 @@ func (r *LongRunner) flushBuffer(buf *[]string, stream string) {
 		Tag:       r.tag,
 		Stream:    stream,
 		Lines:     lines,
+		Host:      cachedHostname,
 	}))
 }

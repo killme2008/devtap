@@ -108,8 +108,15 @@ func installStopHook(config adapter.InstallConfig) error {
 	return os.WriteFile(settingsFile, output, 0o644)
 }
 
+// settingsPathOverride, when non-empty, overrides the default settings.json
+// path. Used by tests to avoid writing to the real ~/.claude/settings.json.
+var settingsPathOverride string
+
 // settingsPath returns the path to Claude Code's settings.json.
 func settingsPath() (string, error) {
+	if settingsPathOverride != "" {
+		return settingsPathOverride, nil
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("get home dir: %w", err)

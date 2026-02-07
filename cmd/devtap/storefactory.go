@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/killme2008/devtap/internal/config"
+	"github.com/killme2008/devtap/internal/mcp"
 	"github.com/killme2008/devtap/internal/store"
 	filestore "github.com/killme2008/devtap/internal/store/file"
 	greptimestore "github.com/killme2008/devtap/internal/store/greptimedb"
@@ -38,6 +39,11 @@ func openStore(cmd *cobra.Command) (store.Store, error) {
 		adapter = "claude-code"
 	}
 
+	return openStoreByBackend(cfg, backend, storeDir, adapter)
+}
+
+// openStoreByBackend opens a store for the given backend name.
+func openStoreByBackend(cfg *config.Config, backend, storeDir, adapter string) (store.Store, error) {
 	switch backend {
 	case "", "file":
 		return filestore.New(storeDir, adapter)
@@ -58,6 +64,101 @@ func openStore(cmd *cobra.Command) (store.Store, error) {
 	default:
 		return nil, fmt.Errorf("unknown store backend: %q (use \"file\" or \"greptimedb\")", backend)
 	}
+}
+
+// resolveDrainSources returns 1 or 2 drain sources for the MCP server and drain command.
+//
+// - "configured" source: from CLI --store/--session flags (or global config defaults)
+// - "local" source: from global config + auto-detected session
+//
+// If they resolve to the same (backend, session), returns a single source.
+// When both sources use the same backend, they share one store instance.
+func resolveDrainSources(cmd *cobra.Command) ([]mcp.DrainSource, func(), error) {
+	storeDir, err := defaultStoreDir()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, nil, fmt.Errorf("load config: %w", err)
+	}
+
+	adapterName, _ := cmd.Flags().GetString("adapter")
+	if adapterName == "" {
+		adapterName = "claude-code"
+	}
+
+	storeFlag, _ := cmd.Flags().GetString("store")
+	sessionFlag, _ := cmd.Flags().GetString("session")
+
+	// Resolve "configured" source: CLI flags take precedence.
+	configuredBackend := cfg.Store.Backend
+	if storeFlag != "" {
+		configuredBackend = storeFlag
+	}
+
+	configuredSession := sessionFlag
+	if configuredSession == "" || configuredSession == "auto" || configuredSession == "pick" {
+		resolved, err := resolveSession(adapterName, configuredSession)
+		if err != nil || resolved == "" {
+			configuredSession = "default"
+		} else {
+			configuredSession = resolved
+		}
+	}
+
+	configuredStore, err := openStoreByBackend(cfg, configuredBackend, storeDir, adapterName)
+	if err != nil {
+		return nil, nil, fmt.Errorf("open configured store: %w", err)
+	}
+
+	// Resolve "local" source: always use global config backend + auto-detected session.
+	localBackend := cfg.Store.Backend
+	localSession, err := resolveSession(adapterName, "auto")
+	if err != nil || localSession == "" {
+		localSession = "default"
+	}
+
+	// Normalize backends for comparison: "" and "file" are the same.
+	normBackend := func(b string) string {
+		if b == "" {
+			return "file"
+		}
+		return b
+	}
+
+	// If both sources resolve to the same (backend, session), single source.
+	if normBackend(configuredBackend) == normBackend(localBackend) && configuredSession == localSession {
+		cleanup := func() { _ = configuredStore.Close() }
+		return []mcp.DrainSource{
+			{Store: configuredStore, SessionID: configuredSession, Label: configuredSession},
+		}, cleanup, nil
+	}
+
+	// Two distinct sources. Open local store (share instance if same backend).
+	var localStore store.Store
+	if normBackend(configuredBackend) == normBackend(localBackend) {
+		localStore = configuredStore
+	} else {
+		localStore, err = openStoreByBackend(cfg, localBackend, storeDir, adapterName)
+		if err != nil {
+			_ = configuredStore.Close()
+			return nil, nil, fmt.Errorf("open local store: %w", err)
+		}
+	}
+
+	cleanup := func() {
+		_ = configuredStore.Close()
+		if localStore != configuredStore {
+			_ = localStore.Close()
+		}
+	}
+
+	return []mcp.DrainSource{
+		{Store: localStore, SessionID: localSession, Label: "local"},
+		{Store: configuredStore, SessionID: configuredSession, Label: configuredSession},
+	}, cleanup, nil
 }
 
 func defaultStoreDir() (string, error) {

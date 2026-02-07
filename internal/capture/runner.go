@@ -11,6 +11,13 @@ import (
 	"github.com/killme2008/devtap/internal/store"
 )
 
+// cachedHostname is resolved once at init time for all runners.
+var cachedHostname string
+
+func init() {
+	cachedHostname, _ = os.Hostname()
+}
+
 // Runner captures subprocess output and writes it to a store.
 type Runner struct {
 	store     store.Store
@@ -90,6 +97,7 @@ func (r *Runner) Run(args []string) (*RunResult, error) {
 		Tag:       r.tag,
 		Stream:    "exit",
 		ExitCode:  &ec,
+		Host:      cachedHostname,
 	}))
 
 	return &RunResult{ExitCode: exitCode}, nil
@@ -142,5 +150,6 @@ func (r *Runner) flushBatch(lines []string, stream string) {
 		Tag:       r.tag,
 		Stream:    stream,
 		Lines:     linesCopy,
+		Host:      cachedHostname,
 	}))
 }

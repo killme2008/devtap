@@ -122,6 +122,11 @@ func TestWriteMCPConfigExtraArgs(t *testing.T) {
 }
 
 func TestInstallExtraArgsInStopHook(t *testing.T) {
+	// Redirect settings.json to a temp file to avoid polluting the real one.
+	tmpSettings := filepath.Join(t.TempDir(), "settings.json")
+	settingsPathOverride = tmpSettings
+	defer func() { settingsPathOverride = "" }()
+
 	a := New()
 	dir := t.TempDir()
 
@@ -142,8 +147,7 @@ func TestInstallExtraArgsInStopHook(t *testing.T) {
 	}
 
 	// Check Stop hook has extra args
-	settingsFile, _ := settingsPath()
-	settingsData, err := os.ReadFile(settingsFile)
+	settingsData, err := os.ReadFile(tmpSettings)
 	if err != nil {
 		t.Fatalf("read settings.json: %v", err)
 	}

@@ -59,6 +59,15 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("install: %w", err)
 	}
 
+	// Print multi-source hint when explicit --session or --store is used.
+	if (sessionFlag != "" && sessionFlag != "auto") || storeFlag != "" {
+		targetSession := sessionFlag
+		if targetSession == "" {
+			targetSession = "auto"
+		}
+		fmt.Printf("MCP server will drain from both local builds and remote session %q.\n\n", targetSession)
+	}
+
 	switch adapterName {
 	case "claude-code":
 		fmt.Println("Installed devtap MCP server for Claude Code.")

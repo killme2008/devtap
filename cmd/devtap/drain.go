@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -33,13 +34,106 @@ For MCP-capable tools, use "devtap mcp-serve" instead.`,
 }
 
 func runDrain(cmd *cobra.Command, args []string) error {
-	adapterName, _ := cmd.Flags().GetString("adapter")
-	sessionFlag, _ := cmd.Flags().GetString("session")
 	event, _ := cmd.Flags().GetString("event")
 	autoLoop, _ := cmd.Flags().GetBool("auto-loop")
 	maxRetries, _ := cmd.Flags().GetInt("max-retries")
 	maxLines, _ := cmd.Flags().GetInt("max-lines")
 	filterSQL, _ := cmd.Flags().GetString("filter-sql")
+
+	// If --filter-sql is set, fall back to single-source drain against the configured store.
+	if filterSQL != "" {
+		return runDrainSingleSource(cmd, filterSQL, maxLines, event, autoLoop, maxRetries)
+	}
+
+	sources, cleanup, err := resolveDrainSources(cmd)
+	if err != nil {
+		return fmt.Errorf("resolve drain sources: %w", err)
+	}
+	defer cleanup()
+
+	multiSource := len(sources) > 1
+	var allMessages []store.LogMessage
+
+	// Track remaining message budget. Drain treats its limit as a message
+	// count, so the budget uses the same unit. Line-level truncation is
+	// handled afterward by TruncateMessages.
+	remaining := maxLines
+
+	for _, src := range sources {
+		if remaining <= 0 {
+			break
+		}
+
+		messages, err := src.Store.Drain(src.SessionID, remaining)
+		if err != nil {
+			if multiSource {
+				fmt.Fprintf(cmd.ErrOrStderr(), "devtap: source %q unreachable: %v\n", src.Label, err)
+				continue
+			}
+			return fmt.Errorf("drain: %w", err)
+		}
+
+		if multiSource {
+			for i := range messages {
+				host := messages[i].Host
+				if host == "" {
+					host = "unknown"
+				}
+				messages[i].Tag = fmt.Sprintf("%s/%s | %s", host, src.Label, messages[i].Tag)
+			}
+		}
+
+		allMessages = append(allMessages, messages...)
+		remaining -= len(messages)
+	}
+
+	if multiSource && len(allMessages) > 0 {
+		allMessages = mcp.DedupMessages(allMessages)
+	}
+
+	allMessages = mcp.TruncateMessages(allMessages, maxLines)
+
+	// Handle auto-loop Stop hook (Claude Code specific)
+	if event == "Stop" && autoLoop {
+		storeDir, err := defaultStoreDir()
+		if err != nil {
+			return fmt.Errorf("resolve store dir: %w", err)
+		}
+		// Use the first source's session for retry tracking
+		sessionID := sources[0].SessionID
+		return handleAutoLoopStop(storeDir, sessionID, allMessages, maxRetries)
+	}
+
+	// Reset retry counter on any non-Stop drain (e.g., user submitted a new prompt).
+	if event != "" && event != "Stop" {
+		if storeDir, err := defaultStoreDir(); err == nil {
+			tracker := store.NewRetryTracker(storeDir)
+			for _, src := range sources {
+				_ = tracker.Reset(src.SessionID)
+			}
+		}
+	}
+
+	if len(allMessages) == 0 {
+		return nil
+	}
+
+	// Plain text output
+	if multiSource {
+		var sourceLabels []string
+		for _, src := range sources {
+			sourceLabels = append(sourceLabels, src.Label)
+		}
+		fmt.Printf("[devtap] Draining from %d sources: %s\n\n", len(sourceLabels), strings.Join(sourceLabels, ", "))
+	}
+	fmt.Println(mcp.FormatMessages(allMessages))
+	return nil
+}
+
+// runDrainSingleSource handles drain with --filter-sql which only works with a single GreptimeDB store.
+func runDrainSingleSource(cmd *cobra.Command, filterSQL string, maxLines int, event string, autoLoop bool, maxRetries int) error {
+	adapterName, _ := cmd.Flags().GetString("adapter")
+	sessionFlag, _ := cmd.Flags().GetString("session")
 
 	sessionID, err := resolveSession(adapterName, sessionFlag)
 	if err != nil {
@@ -52,24 +146,18 @@ func runDrain(cmd *cobra.Command, args []string) error {
 	}
 	defer func() { _ = s.Close() }()
 
-	// Drain messages (with SQL filter if using GreptimeDB)
-	var messages []store.LogMessage
-	if filterSQL != "" {
-		if gs, ok := s.(*greptimestore.Store); ok {
-			messages, err = gs.DrainSQL(sessionID, filterSQL, maxLines)
-		} else {
-			return fmt.Errorf("--filter-sql requires --store greptimedb")
-		}
-	} else {
-		messages, err = s.Drain(sessionID, maxLines)
+	gs, ok := s.(*greptimestore.Store)
+	if !ok {
+		return fmt.Errorf("--filter-sql requires --store greptimedb")
 	}
+
+	messages, err := gs.DrainSQL(sessionID, filterSQL, maxLines)
 	if err != nil {
 		return fmt.Errorf("drain: %w", err)
 	}
 
 	messages = mcp.TruncateMessages(messages, maxLines)
 
-	// Handle auto-loop Stop hook (Claude Code specific)
 	if event == "Stop" && autoLoop {
 		storeDir, err := defaultStoreDir()
 		if err != nil {
@@ -78,7 +166,6 @@ func runDrain(cmd *cobra.Command, args []string) error {
 		return handleAutoLoopStop(storeDir, sessionID, messages, maxRetries)
 	}
 
-	// Reset retry counter on any non-Stop drain (e.g., user submitted a new prompt).
 	if event != "" && event != "Stop" {
 		if storeDir, err := defaultStoreDir(); err == nil {
 			tracker := store.NewRetryTracker(storeDir)
@@ -90,7 +177,6 @@ func runDrain(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Plain text output
 	fmt.Println(mcp.FormatMessages(messages))
 	return nil
 }

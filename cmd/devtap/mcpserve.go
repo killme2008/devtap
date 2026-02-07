@@ -23,38 +23,30 @@ Exposed tools:
   get_build_status   Get pending message counts per session`,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			s, err := openStore(cmd)
-			if err != nil {
-				return fmt.Errorf("open store: %w", err)
-			}
-			defer func() { _ = s.Close() }()
-
-			adapterName, _ := cmd.Flags().GetString("adapter")
-			if adapterName == "" {
-				adapterName = "claude-code"
-			}
-			sessionID, _ := cmd.Flags().GetString("session")
 			maxLines, _ := cmd.Flags().GetInt("max-lines")
 			if maxLines <= 0 {
 				maxLines = 10000
 			}
 
-			// If session is "auto", use a default based on cwd
-			if sessionID == "" || sessionID == "auto" {
-				resolved, err := resolveSession(adapterName, "auto")
-				if err != nil || resolved == "" {
-					sessionID = "default"
-				} else {
-					sessionID = resolved
+			adapterName, _ := cmd.Flags().GetString("adapter")
+			if adapterName == "" {
+				adapterName = "claude-code"
+			}
+
+			sources, cleanup, err := resolveDrainSources(cmd)
+			if err != nil {
+				return fmt.Errorf("resolve drain sources: %w", err)
+			}
+			defer cleanup()
+
+			// Pre-register adapter dir for each source so writers can discover us.
+			if storeDir, err := defaultStoreDir(); err == nil {
+				for _, src := range sources {
+					_ = store.EnsureAdapterDir(storeDir, src.SessionID, adapterName)
 				}
 			}
 
-			// Pre-register adapter dir so writers can discover and fan-out to us.
-			if storeDir, err := defaultStoreDir(); err == nil {
-				_ = store.EnsureAdapterDir(storeDir, sessionID, adapterName)
-			}
-
-			srv := mcp.NewServer(s, sessionID, maxLines)
+			srv := mcp.NewMultiSourceServer(sources, maxLines)
 			return srv.Run()
 		},
 	}

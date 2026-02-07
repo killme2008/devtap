@@ -60,6 +60,19 @@ devtap -- npm run dev
 
 **Terminal B** — use your AI coding tool as usual. It will automatically call `get_build_errors` via MCP to fetch captured build errors.
 
+If you want to verify without MCP, run:
+
+```bash
+devtap drain
+```
+
+Typical output:
+
+```text
+[devtap: cargo check] Build failed (exit code 101):
+...
+```
+
 **Tip:** Since devtap captures stdout from any command, you can send arbitrary messages to your coding agent:
 
 ```bash
@@ -105,6 +118,13 @@ Your laptop                       CI / remote build server
 2. `devtap -- <cmd>` runs your command, captures stdout/stderr, fans out to all registered adapters
 3. Each AI tool independently drains its own copy via `get_build_errors`
 4. AI sees the errors and fixes them
+
+When `mcp-serve`/`drain` is started with explicit `--session` or `--store`, devtap can merge output from two sources:
+
+- `local`: auto-detected project session from your default backend
+- `configured`: the explicit `--session`/`--store` target
+
+If both resolve to the same backend+session, devtap uses a single source. Otherwise it drains both, deduplicates identical messages, and prefixes tags with source info (for example `myhost/local |`).
 
 ## Supported Tools
 
@@ -218,6 +238,30 @@ devtap --store greptimedb --session myproject -- make
 
 Multiple build machines can write to the same session simultaneously — each entry is tagged with its source, and the AI tool drains them all.
 
+**Local + remote merged drain** — keep your local loop and a remote shared session visible at the same time:
+
+```bash
+# Laptop: local output (default source)
+devtap -- cargo check
+
+# Remote machine: shared session output (configured source)
+devtap --store greptimedb --session myproject -- make
+
+# Laptop: install MCP with explicit remote session
+devtap install --adapter claude-code --store greptimedb --session myproject
+
+# Optional manual check (without MCP client)
+devtap drain --store greptimedb --session myproject
+```
+
+`devtap drain` shows a merged header (`Draining from N sources`), emits source-unreachable warnings when partial failures occur, and still returns available output from reachable sources.
+
+Typical merged header:
+
+```text
+[devtap] Draining from 2 sources (2 reachable)
+```
+
 **Session auto-detection** — when `--session auto` (default), devtap resolves the project directory like this:
 1. Git root (nearest parent with `.git`)
 2. Project marker files (nearest parent with one of: `go.mod`, `package.json`, `pyproject.toml`, `Cargo.toml`, `pom.xml`, `build.gradle`, `build.gradle.kts`, `composer.json`, `Gemfile`, `setup.py`)
@@ -264,6 +308,15 @@ Subcommands:
 ```
 
 Lines exceeding `--max-lines` are smart-truncated: head and tail preserved with omission notice. Consecutive duplicate lines are merged.
+
+`devtap mcp-serve` and `devtap drain` can aggregate multiple sources (local + configured) as described above. `devtap drain --filter-sql` is a single-source mode and requires `--store greptimedb`.
+
+## Troubleshooting
+
+- No output but you expect logs: run `devtap status` first, then `devtap drain --max-lines 200`.
+- Using an unexpected session: run with `--session pick` once to confirm the target session.
+- Multi-source drain shows warnings: reachable sources are still returned; warnings indicate one source is unavailable.
+- MCP tool not being called: re-run `devtap install --adapter <adapter>` in the project root and restart the AI tool session.
 
 ## Security & Privacy
 

@@ -112,6 +112,9 @@ func (s *Store) Write(sessionID string, msg store.LogMessage) error {
 	if err := tbl.AddFieldColumn("exit_code", types.INT32); err != nil {
 		return err
 	}
+	if err := tbl.AddFieldColumn("host", types.STRING); err != nil {
+		return err
+	}
 	if err := tbl.AddTimestampColumn("ts", types.TIMESTAMP_MICROSECOND); err != nil {
 		return err
 	}
@@ -128,7 +131,7 @@ func (s *Store) Write(sessionID string, msg store.LogMessage) error {
 	}
 
 	for _, adapter := range adapters {
-		if err := tbl.AddRow(sessionID, msg.Tag, msg.Stream, adapter, content, exitCode, ts); err != nil {
+		if err := tbl.AddRow(sessionID, msg.Tag, msg.Stream, adapter, content, exitCode, msg.Host, ts); err != nil {
 			return fmt.Errorf("add row: %w", err)
 		}
 	}
@@ -152,7 +155,7 @@ func (s *Store) Write(sessionID string, msg store.LogMessage) error {
 // microsecond precision and the default 10000-row limit.
 func (s *Store) Drain(sessionID string, maxLines int) ([]store.LogMessage, error) {
 	query := fmt.Sprintf(
-		"SELECT ts, `tag`, `stream`, adapter, content, exit_code FROM %s WHERE session_id = ? AND adapter = ? AND ts > ? ORDER BY ts ASC LIMIT ?",
+		"SELECT ts, `tag`, `stream`, adapter, content, exit_code, COALESCE(host, '') AS host FROM %s WHERE session_id = ? AND adapter = ? AND ts > ? ORDER BY ts ASC LIMIT ?",
 		tableName,
 	)
 	return s.drainWithQuery(sessionID, maxLines, query)
@@ -164,7 +167,7 @@ func (s *Store) DrainSQL(sessionID string, filterSQL string, maxLines int) ([]st
 		return nil, err
 	}
 	query := fmt.Sprintf(
-		"SELECT ts, `tag`, `stream`, adapter, content, exit_code FROM %s WHERE session_id = ? AND adapter = ? AND ts > ? AND (%s) ORDER BY ts ASC LIMIT ?",
+		"SELECT ts, `tag`, `stream`, adapter, content, exit_code, COALESCE(host, '') AS host FROM %s WHERE session_id = ? AND adapter = ? AND ts > ? AND (%s) ORDER BY ts ASC LIMIT ?",
 		tableName, filterSQL,
 	)
 	return s.drainWithQuery(sessionID, maxLines, query)
@@ -229,8 +232,9 @@ func (s *Store) drainWithQuery(sessionID string, maxLines int, query string) ([]
 			adapterName string
 			content     string
 			exitCode    int32
+			host        string
 		)
-		if err := rows.Scan(&ts, &tag, &stream, &adapterName, &content, &exitCode); err != nil {
+		if err := rows.Scan(&ts, &tag, &stream, &adapterName, &content, &exitCode, &host); err != nil {
 			return nil, fmt.Errorf("scan row: %w", err)
 		}
 
@@ -239,6 +243,7 @@ func (s *Store) drainWithQuery(sessionID string, maxLines int, query string) ([]
 			Tag:       tag,
 			Stream:    stream,
 			Adapter:   adapterName,
+			Host:      host,
 		}
 		if content != "" {
 			msg.Lines = strings.Split(content, "\n")
@@ -369,6 +374,7 @@ type HistoryEntry struct {
 	Adapter   string
 	ExitCode  int
 	Summary   string // first line of content
+	Host      string
 }
 
 // History queries historical build events for a session.
@@ -384,7 +390,7 @@ func (s *Store) History(sessionID, tag string, since time.Duration, limit int) (
 
 	var queryBuilder strings.Builder
 	queryBuilder.WriteString(fmt.Sprintf(
-		"SELECT ts, `tag`, adapter, exit_code, content FROM %s WHERE session_id = ? AND adapter = ? AND ts > ?",
+		"SELECT ts, `tag`, adapter, exit_code, content, COALESCE(host, '') AS host FROM %s WHERE session_id = ? AND adapter = ? AND ts > ?",
 		tableName,
 	))
 
@@ -415,7 +421,7 @@ func (s *Store) History(sessionID, tag string, since time.Duration, limit int) (
 	if len(entries) == 0 {
 		queryBuilder.Reset()
 		queryBuilder.WriteString(fmt.Sprintf(
-			"SELECT ts, `tag`, adapter, exit_code, content FROM %s WHERE session_id = ? AND adapter = ? AND ts > ?",
+			"SELECT ts, `tag`, adapter, exit_code, content, COALESCE(host, '') AS host FROM %s WHERE session_id = ? AND adapter = ? AND ts > ?",
 			tableName,
 		))
 		queryArgs = []any{sessionID, s.adapter, sinceTime}
@@ -449,8 +455,9 @@ func scanHistoryEntries(rows *sql.Rows) []HistoryEntry {
 			adapterName string
 			exitCode    int32
 			content     string
+			host        string
 		)
-		if err := rows.Scan(&ts, &entryTag, &adapterName, &exitCode, &content); err != nil {
+		if err := rows.Scan(&ts, &entryTag, &adapterName, &exitCode, &content, &host); err != nil {
 			continue
 		}
 
@@ -465,6 +472,7 @@ func scanHistoryEntries(rows *sql.Rows) []HistoryEntry {
 			Adapter:   adapterName,
 			ExitCode:  int(exitCode),
 			Summary:   summary,
+			Host:      host,
 		})
 	}
 	return entries
@@ -509,6 +517,11 @@ func (s *Store) ensureTable() error {
 	if err != nil {
 		return fmt.Errorf("create table: %w", err)
 	}
+
+	// Best-effort migration: add host column to existing tables.
+	// Silently ignore error — column may already exist (new table), or
+	// the ALTER may fail for other reasons (not critical).
+	_, _ = s.db.ExecContext(ctx, fmt.Sprintf("ALTER TABLE %s ADD COLUMN host STRING", tableName))
 
 	s.ensured = true
 	return nil
@@ -580,6 +593,7 @@ func buildCreateTableSQL() string {
 		" adapter STRING,"+
 		" content STRING,"+
 		" exit_code INT,"+
+		" host STRING,"+
 		" PRIMARY KEY (session_id, `tag`, `stream`, adapter)"+
 		") WITH ('append_mode'='true', 'ttl'='7d')", tableName)
 }

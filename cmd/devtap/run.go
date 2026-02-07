@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -37,10 +38,9 @@ func runRun(cmd *cobra.Command, args []string) error {
 	debounce, _ := cmd.Flags().GetDuration("debounce")
 
 	if tag == "" {
-		if name := capture.CommandName(cmdArgs); name != "" {
-			tag = filepath.Base(name)
-		} else {
-			tag = filepath.Base(cmdArgs[0])
+		tag = shellJoin(cmdArgs)
+		if len(tag) > 80 {
+			tag = tag[:77] + "..."
 		}
 	}
 
@@ -174,4 +174,18 @@ func findMarkerRoot(start string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// shellJoin joins command arguments into a display string,
+// quoting arguments that contain spaces or shell metacharacters.
+func shellJoin(args []string) string {
+	parts := make([]string, len(args))
+	for i, arg := range args {
+		if strings.ContainsAny(arg, " \t'\"\\$`!#&|;(){}") {
+			parts[i] = fmt.Sprintf("%q", arg)
+		} else {
+			parts[i] = arg
+		}
+	}
+	return strings.Join(parts, " ")
 }

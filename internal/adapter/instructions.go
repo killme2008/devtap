@@ -8,6 +8,7 @@ import (
 )
 
 const instructionStartMarker = "<!-- devtap:start -->"
+const instructionEndMarker = "<!-- devtap:end -->"
 
 // InstructionBlockMCP is the instruction block for MCP-capable adapters.
 const InstructionBlockMCP = `<!-- devtap:start -->
@@ -15,12 +16,21 @@ const InstructionBlockMCP = `<!-- devtap:start -->
 
 devtap captures build/dev output from a separate terminal and delivers it here via MCP.
 
-**You MUST call get_build_errors in these situations:**
+**You MUST check devtap in these situations:**
 - At the start of each new task or conversation turn
 - Before writing or editing any code
 - After being told that a build, test, or dev server has new output
 
-Do not assume there are no errors — always check. Build output may arrive at any time from a parallel terminal.
+**Use this call order:**
+1. Call "get_build_status" once at the start of the turn.
+2. Call "get_build_errors" when status reports pending messages, when the user says new output arrived, or before the first code edit in the turn.
+
+**Call limit per turn:** call "get_build_errors" at most once per turn unless new output is reported.
+
+**Multi-source mode:** when devtap drains from multiple sources, tags are prefixed with "host/label |" (for example, "[devtap: myhost/local | make]"). "host" is the machine name, "label" identifies the source. Show these prefixes as-is. If output includes source warnings (for example, source unreachable), show those warnings verbatim and continue with output from reachable sources.
+
+**Output format:** when "get_build_errors" returns content, present it verbatim in a fenced code block, then add one line:
+"Next action: <what you will do>".
 <!-- devtap:end -->`
 
 // InstructionBlockLint is the instruction block for lint-based adapters (aider).
@@ -42,8 +52,9 @@ func FindProjectInstruction(paths []string) string {
 	return ""
 }
 
-// AppendInstruction appends the devtap instruction block to filePath if the
-// marker is not already present. Returns true if the file was modified.
+// AppendInstruction upserts the devtap instruction block in filePath.
+// If a devtap block exists, it is replaced with block; otherwise block is appended.
+// Returns true if the file content changed.
 func AppendInstruction(filePath, block string) (bool, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
@@ -51,8 +62,24 @@ func AppendInstruction(filePath, block string) (bool, error) {
 	}
 
 	content := string(data)
-	if strings.Contains(content, instructionStartMarker) {
-		return false, nil
+	if start := strings.Index(content, instructionStartMarker); start >= 0 {
+		endRel := strings.Index(content[start:], instructionEndMarker)
+		if endRel < 0 {
+			return false, fmt.Errorf("updating %s: found %q but missing %q", filePath, instructionStartMarker, instructionEndMarker)
+		}
+
+		end := start + endRel + len(instructionEndMarker)
+		newContent := content[:start] + block + content[end:]
+		if !strings.HasSuffix(newContent, "\n") {
+			newContent += "\n"
+		}
+		if newContent == content {
+			return false, nil
+		}
+		if err := os.WriteFile(filePath, []byte(newContent), 0o644); err != nil {
+			return false, fmt.Errorf("writing %s: %w", filePath, err)
+		}
+		return true, nil
 	}
 
 	// Trim trailing whitespace to avoid excess blank lines, then add
