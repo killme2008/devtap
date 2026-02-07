@@ -82,6 +82,45 @@ func TestInstallMergesExisting(t *testing.T) {
 	}
 }
 
+func TestInstallExtraArgs(t *testing.T) {
+	a := New()
+	dir := t.TempDir()
+
+	config := adapter.InstallConfig{
+		ProjectDir: dir,
+		ExtraArgs:  []string{"--session", "myproject", "--store", "greptimedb"},
+	}
+	if err := a.Install(config); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, configFileName))
+	if err != nil {
+		t.Fatalf("read opencode.json: %v", err)
+	}
+
+	var cfg map[string]any
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	mcp := cfg["mcp"].(map[string]any)
+	devtap := mcp["devtap"].(map[string]any)
+	cmd := devtap["command"].([]any)
+
+	// OpenCode format: command is [binPath, "mcp-serve", ...extraArgs]
+	want := []string{"mcp-serve", "--session", "myproject", "--store", "greptimedb"}
+	// cmd[0] is binPath, check from cmd[1] onward
+	if len(cmd) != len(want)+1 {
+		t.Fatalf("command length: got %d, want %d", len(cmd), len(want)+1)
+	}
+	for i, w := range want {
+		if cmd[i+1] != w {
+			t.Errorf("command[%d]: got %v, want %s", i+1, cmd[i+1], w)
+		}
+	}
+}
+
 func TestDiscoverSessions(t *testing.T) {
 	a := New()
 	sessions, err := a.DiscoverSessions("/tmp/test-project")

@@ -68,6 +68,43 @@ func TestInstall(t *testing.T) {
 	}
 }
 
+func TestInstallExtraArgs(t *testing.T) {
+	a := New()
+	dir := t.TempDir()
+
+	config := adapter.InstallConfig{
+		ProjectDir: dir,
+		ExtraArgs:  []string{"--session", "myproject", "--store", "greptimedb"},
+	}
+	if err := a.Install(config); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, configFilePath))
+	if err != nil {
+		t.Fatalf("read .gemini/settings.json: %v", err)
+	}
+
+	var cfg map[string]any
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	servers := cfg["mcpServers"].(map[string]any)
+	devtap := servers["devtap"].(map[string]any)
+	args := devtap["args"].([]any)
+
+	want := []string{"mcp-serve", "--session", "myproject", "--store", "greptimedb"}
+	if len(args) != len(want) {
+		t.Fatalf("args length: got %d, want %d", len(args), len(want))
+	}
+	for i, w := range want {
+		if args[i] != w {
+			t.Errorf("args[%d]: got %v, want %s", i, args[i], w)
+		}
+	}
+}
+
 func TestInstallMergesExisting(t *testing.T) {
 	a := New()
 	dir := t.TempDir()

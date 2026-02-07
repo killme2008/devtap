@@ -72,6 +72,41 @@ args = ["--flag"]
 	}
 }
 
+func TestInstallExtraArgs(t *testing.T) {
+	a := New()
+	dir := t.TempDir()
+
+	config := adapter.InstallConfig{
+		ProjectDir: dir,
+		ExtraArgs:  []string{"--session", "myproject", "--store", "greptimedb"},
+	}
+	if err := a.Install(config); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+
+	configPath := filepath.Join(dir, ".codex", "config.toml")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config.toml: %v", err)
+	}
+
+	var cfg codexConfig
+	if _, err := toml.Decode(string(data), &cfg); err != nil {
+		t.Fatalf("invalid TOML: %v", err)
+	}
+
+	entry := cfg.MCPServers["devtap"]
+	want := []string{"mcp-serve", "--session", "myproject", "--store", "greptimedb"}
+	if len(entry.Args) != len(want) {
+		t.Fatalf("args length: got %d, want %d", len(entry.Args), len(want))
+	}
+	for i, w := range want {
+		if entry.Args[i] != w {
+			t.Errorf("args[%d]: got %q, want %q", i, entry.Args[i], w)
+		}
+	}
+}
+
 func TestDiscoverSessions(t *testing.T) {
 	a := New()
 	sessions, err := a.DiscoverSessions("/tmp/test-project")

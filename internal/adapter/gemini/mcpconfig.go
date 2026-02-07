@@ -10,7 +10,7 @@ import (
 var configFilePath = filepath.Join(".gemini", "settings.json")
 
 // writeMCPConfig writes or merges devtap MCP server config into .gemini/settings.json.
-func writeMCPConfig(projectDir string) error {
+func writeMCPConfig(projectDir string, extraArgs []string) error {
 	binPath, err := os.Executable()
 	if err != nil {
 		binPath = "devtap"
@@ -35,9 +35,10 @@ func writeMCPConfig(projectDir string) error {
 		servers = make(map[string]any)
 	}
 
+	args := append([]string{"mcp-serve"}, extraArgs...)
 	servers["devtap"] = map[string]any{
 		"command": binPath,
-		"args":    []string{"mcp-serve"},
+		"args":    args,
 	}
 
 	existing["mcpServers"] = servers

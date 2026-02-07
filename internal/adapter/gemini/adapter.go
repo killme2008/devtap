@@ -40,7 +40,7 @@ func (a *Adapter) Install(config adapter.InstallConfig) error {
 		return nil
 	}
 
-	if err := writeMCPConfig(config.ProjectDir); err != nil {
+	if err := writeMCPConfig(config.ProjectDir, config.ExtraArgs); err != nil {
 		return err
 	}
 	installInstruction(config.ProjectDir)

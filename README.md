@@ -188,12 +188,14 @@ devtap --tag cargo-test --debounce 5s -- cargo watch -x test
 **Cross-machine builds** — with a shared [GreptimeDB](#greptimedb-optional) instance, the build and the AI tool can run on different machines. Use `--session` to give both sides the same logical session name:
 
 ```bash
+# Machine B (your laptop) — install once, bakes --session and --store into MCP config
+devtap install --adapter claude-code --session myproject --store greptimedb
+
 # Machine A (CI / remote build server)
 devtap --store greptimedb --session myproject -- make
-
-# Machine B (your laptop, running the AI tool)
-devtap mcp-serve --store greptimedb --session myproject
 ```
+
+`devtap install` writes the `--session` and `--store` flags into the MCP config file (e.g. `.mcp.json`), so the AI tool's MCP server automatically connects to the right GreptimeDB instance and session.
 
 Multiple build machines can write to the same session simultaneously — each entry is tagged with its source, and the AI tool drains them all.
 
@@ -231,7 +233,7 @@ Flags:
       --debounce <dur>       Flush interval for captured output (default "2s", 0 to disable)
 
 Subcommands:
-  install     Configure AI tool integration
+  install     Configure AI tool integration (--session and --store are forwarded to MCP config)
   mcp-serve   Start MCP stdio server
   drain       Read pending messages as plain text
   status      Show pending message counts

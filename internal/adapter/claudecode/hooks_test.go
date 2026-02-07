@@ -12,7 +12,7 @@ import (
 
 func TestWriteMCPConfig(t *testing.T) {
 	dir := t.TempDir()
-	if err := writeMCPConfig(dir); err != nil {
+	if err := writeMCPConfig(dir, nil); err != nil {
 		t.Fatalf("writeMCPConfig: %v", err)
 	}
 
@@ -66,7 +66,7 @@ func TestWriteMCPConfigMergesExisting(t *testing.T) {
 		t.Fatalf("write existing: %v", err)
 	}
 
-	if err := writeMCPConfig(dir); err != nil {
+	if err := writeMCPConfig(dir, nil); err != nil {
 		t.Fatalf("writeMCPConfig: %v", err)
 	}
 
@@ -86,6 +86,69 @@ func TestWriteMCPConfigMergesExisting(t *testing.T) {
 	}
 	if _, ok := servers["devtap"]; !ok {
 		t.Error("devtap entry was not added")
+	}
+}
+
+func TestWriteMCPConfigExtraArgs(t *testing.T) {
+	dir := t.TempDir()
+	extra := []string{"--session", "myproject", "--store", "greptimedb"}
+	if err := writeMCPConfig(dir, extra); err != nil {
+		t.Fatalf("writeMCPConfig: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, ".mcp.json"))
+	if err != nil {
+		t.Fatalf("read .mcp.json: %v", err)
+	}
+
+	var config map[string]any
+	if err := json.Unmarshal(data, &config); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	servers := config["mcpServers"].(map[string]any)
+	devtap := servers["devtap"].(map[string]any)
+	args := devtap["args"].([]any)
+
+	want := []string{"mcp-serve", "--session", "myproject", "--store", "greptimedb"}
+	if len(args) != len(want) {
+		t.Fatalf("args length: got %d, want %d", len(args), len(want))
+	}
+	for i, w := range want {
+		if args[i] != w {
+			t.Errorf("args[%d]: got %v, want %s", i, args[i], w)
+		}
+	}
+}
+
+func TestInstallExtraArgsInStopHook(t *testing.T) {
+	a := New()
+	dir := t.TempDir()
+
+	config := adapter.InstallConfig{
+		ProjectDir: dir,
+		AutoLoop:   true,
+		MaxRetries: 3,
+		ExtraArgs:  []string{"--session", "myproject"},
+	}
+	if err := a.Install(config); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+
+	// Check .mcp.json has extra args
+	mcpData, _ := os.ReadFile(filepath.Join(dir, ".mcp.json"))
+	if !strings.Contains(string(mcpData), "--session") {
+		t.Error(".mcp.json should contain --session")
+	}
+
+	// Check Stop hook has extra args
+	settingsFile, _ := settingsPath()
+	settingsData, err := os.ReadFile(settingsFile)
+	if err != nil {
+		t.Fatalf("read settings.json: %v", err)
+	}
+	if !strings.Contains(string(settingsData), "--session myproject") {
+		t.Errorf("Stop hook should contain --session myproject, got: %s", settingsData)
 	}
 }
 

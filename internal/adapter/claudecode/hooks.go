@@ -13,7 +13,7 @@ import (
 const mcpConfigName = ".mcp.json"
 
 // writeMCPConfig writes or merges devtap MCP server config into .mcp.json.
-func writeMCPConfig(projectDir string) error {
+func writeMCPConfig(projectDir string, extraArgs []string) error {
 	binPath, err := devtapBinaryPath()
 	if err != nil {
 		return err
@@ -38,9 +38,10 @@ func writeMCPConfig(projectDir string) error {
 		servers = make(map[string]any)
 	}
 
+	args := append([]string{"mcp-serve"}, extraArgs...)
 	servers["devtap"] = map[string]any{
 		"command": binPath,
-		"args":    []string{"mcp-serve"},
+		"args":    args,
 	}
 
 	existing["mcpServers"] = servers
@@ -88,6 +89,9 @@ func installStopHook(config adapter.InstallConfig) error {
 		maxRetries = 5
 	}
 	stopCmd := fmt.Sprintf("\"%s\" drain --event Stop --auto-loop --max-retries %d", binPath, maxRetries)
+	for _, arg := range config.ExtraArgs {
+		stopCmd += fmt.Sprintf(" %s", arg)
+	}
 	hooks["Stop"] = upsertMatcherGroup(hooks["Stop"], "", stopCmd)
 
 	settings["hooks"] = hooks

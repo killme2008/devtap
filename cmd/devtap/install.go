@@ -31,16 +31,27 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	adapterName, _ := cmd.Flags().GetString("adapter")
 	autoLoop, _ := cmd.Flags().GetBool("auto-loop")
 	maxRetries, _ := cmd.Flags().GetInt("max-retries")
+	sessionFlag, _ := cmd.Flags().GetString("session")
+	storeFlag, _ := cmd.Flags().GetString("store")
 
 	projectDir, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("get working directory: %w", err)
 	}
 
+	var extraArgs []string
+	if sessionFlag != "" && sessionFlag != "auto" {
+		extraArgs = append(extraArgs, "--session", sessionFlag)
+	}
+	if storeFlag != "" {
+		extraArgs = append(extraArgs, "--store", storeFlag)
+	}
+
 	config := adapter.InstallConfig{
 		ProjectDir: projectDir,
 		AutoLoop:   autoLoop,
 		MaxRetries: maxRetries,
+		ExtraArgs:  extraArgs,
 	}
 
 	a := getAdapter(adapterName)

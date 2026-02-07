@@ -22,7 +22,7 @@ type mcpServerEntry struct {
 const mcpConfigPath = ".codex/config.toml"
 
 // writeMCPConfig writes or merges devtap MCP server config into .codex/config.toml.
-func writeMCPConfig(projectDir string) error {
+func writeMCPConfig(projectDir string, extraArgs []string) error {
 	binPath, err := os.Executable()
 	if err != nil {
 		binPath = "devtap"
@@ -48,7 +48,7 @@ func writeMCPConfig(projectDir string) error {
 
 	cfg.MCPServers["devtap"] = mcpServerEntry{
 		Command: binPath,
-		Args:    []string{"mcp-serve"},
+		Args:    append([]string{"mcp-serve"}, extraArgs...),
 	}
 
 	if err := os.MkdirAll(configDir, 0o755); err != nil {

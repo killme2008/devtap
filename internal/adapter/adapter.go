@@ -12,6 +12,9 @@ type InstallConfig struct {
 	ProjectDir string
 	AutoLoop   bool
 	MaxRetries int
+	// ExtraArgs are additional CLI flags appended to mcp-serve / drain commands
+	// (e.g. ["--session", "myproject", "--store", "greptimedb"]).
+	ExtraArgs []string
 }
 
 // Adapter abstracts the integration with different AI coding tools.

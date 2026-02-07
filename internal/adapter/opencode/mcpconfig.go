@@ -10,7 +10,7 @@ import (
 const configFileName = "opencode.json"
 
 // writeMCPConfig writes or merges devtap MCP server config into opencode.json.
-func writeMCPConfig(projectDir string) error {
+func writeMCPConfig(projectDir string, extraArgs []string) error {
 	binPath, err := os.Executable()
 	if err != nil {
 		binPath = "devtap"
@@ -37,7 +37,7 @@ func writeMCPConfig(projectDir string) error {
 
 	mcpSection["devtap"] = map[string]any{
 		"type":    "local",
-		"command": []string{binPath, "mcp-serve"},
+		"command": append([]string{binPath, "mcp-serve"}, extraArgs...),
 	}
 
 	existing["mcp"] = mcpSection

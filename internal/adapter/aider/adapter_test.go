@@ -36,6 +36,35 @@ func TestInstall(t *testing.T) {
 	}
 }
 
+func TestInstallExtraArgs(t *testing.T) {
+	a := New()
+	dir := t.TempDir()
+
+	config := adapter.InstallConfig{
+		ProjectDir: dir,
+		ExtraArgs:  []string{"--session", "myproject", "--store", "greptimedb"},
+	}
+	if err := a.Install(config); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(dir, lintScriptName))
+	if err != nil {
+		t.Fatalf("read lint script: %v", err)
+	}
+	script := string(content)
+
+	if !strings.Contains(script, "--session myproject") {
+		t.Error("lint script should contain --session myproject")
+	}
+	if !strings.Contains(script, "--store greptimedb") {
+		t.Error("lint script should contain --store greptimedb")
+	}
+	if !strings.Contains(script, "drain") {
+		t.Error("lint script should contain drain command")
+	}
+}
+
 func TestDiscoverSessions(t *testing.T) {
 	a := New()
 	sessions, err := a.DiscoverSessions("/tmp/test-project")
