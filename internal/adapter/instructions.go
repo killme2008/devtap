@@ -29,8 +29,10 @@ devtap captures build/dev output from a separate terminal and delivers it here v
 
 **Multi-source mode:** when devtap drains from multiple sources, tags are prefixed with "host/label |" (for example, "[devtap: myhost/local | make]"). "host" is the machine name, "label" identifies the source. Show these prefixes as-is. If output includes source warnings (for example, source unreachable), show those warnings verbatim and continue with output from reachable sources.
 
-**Output format:** when "get_build_errors" returns content, present it verbatim in a fenced code block, then add one line:
-"Next action: <what you will do>".
+**Output format:** when "get_build_errors" returns content:
+If build succeeded, acknowledge briefly (do not repeat the output).
+If build failed, present the error output verbatim in a fenced code block.
+Then add one line: "Next action: <what you will do>".
 <!-- devtap:end -->`
 
 // InstructionBlockLint is the instruction block for lint-based adapters (aider).

@@ -7,7 +7,7 @@ import (
 
 // TruncateMessages applies line-level truncation across messages.
 // It allocates the maxLines budget proportionally to each message,
-// using filter.Truncate for smart head/tail truncation per message.
+// using filter.TruncateWithRatio for tail-biased (80/20) truncation per message.
 func TruncateMessages(messages []store.LogMessage, maxLines int) []store.LogMessage {
 	if maxLines <= 0 {
 		return messages
@@ -39,7 +39,7 @@ func TruncateMessages(messages []store.LogMessage, maxLines int) []store.LogMess
 		if share > remaining {
 			share = remaining
 		}
-		result[i].Lines = filter.Truncate(result[i].Lines, share)
+		result[i].Lines = filter.TruncateWithRatio(result[i].Lines, share, 0.8)
 		remaining -= len(result[i].Lines)
 		if remaining <= 0 {
 			// Clear remaining messages' lines.
