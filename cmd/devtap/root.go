@@ -28,7 +28,7 @@ Homepage: https://github.com/killme2008/devtap`,
 
 	// Global flags
 	cmd.PersistentFlags().StringP("adapter", "a", "claude-code", "AI tool adapter (claude-code, codex, opencode, gemini, aider)")
-	cmd.PersistentFlags().StringP("session", "s", "auto", `target session ("auto", "pick", or UUID)`)
+	cmd.PersistentFlags().StringP("session", "s", "auto", `target session ("auto", "pick", or explicit name for cross-machine use)`)
 	cmd.PersistentFlags().String("store", "", `storage backend override ("file" or "greptimedb", default from config)`)
 
 	// Run-specific flags

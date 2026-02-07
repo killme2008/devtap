@@ -100,14 +100,19 @@ func gcStoreDir(storeDir string, cutoff time.Time) error {
 }
 
 // allFilesOlderThan returns true if every file in dir (recursively) has a
-// modification time before cutoff. Returns true for empty directories.
+// modification time before cutoff. Empty directories are removed only if the
+// directory mtime is before cutoff.
 func allFilesOlderThan(dir string, cutoff time.Time) bool {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return false
 	}
 	if len(entries) == 0 {
-		return true
+		info, err := os.Stat(dir)
+		if err != nil {
+			return false
+		}
+		return info.ModTime().Before(cutoff)
 	}
 	for _, e := range entries {
 		path := filepath.Join(dir, e.Name())

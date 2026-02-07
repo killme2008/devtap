@@ -14,10 +14,11 @@ Bridge build/dev process output to AI coding sessions automatically.
 
 In vibe coding workflows, you run an AI coding tool in one terminal and build commands in another. When errors occur, you manually copy-paste logs into the coding session. `devtap` automates this feedback loop.
 
-Two common cases make this especially painful:
+Three common cases make this especially painful:
 
 1. Multiple local dev processes (frontend + backend + worker) that you need to keep an eye on and fix quickly.
 2. Multiple coding agents working on the same project, where you want them to analyze the same failures in parallel and compare findings.
+3. Build/test runs on remote machines (CI, dev boxes) whose output you need to feed back to a local coding agent.
 
 ## Quick Start
 
@@ -119,7 +120,7 @@ Zero-dependency JSONL files at `~/.devtap/<session>/<adapter>/pending.jsonl`. Ea
 
 ### [GreptimeDB](https://github.com/GreptimeTeam/greptimedb) (optional)
 
-For persistent history, SQL-based filtering, and richer statistics. With a remote GreptimeDB instance, Terminal A and Terminal B don't even need to be on the same machine — capture build output from a CI server or remote dev box and consume it from your local AI coding session.
+For persistent history, SQL-based filtering, and richer statistics. With a remote GreptimeDB instance, the build and the AI tool don't even need to be on the same machine — see [Cross-machine builds](#advanced-usage) for details.
 
 See [GreptimeDB installation guide](https://docs.greptime.com/getting-started/installation/greptimedb-standalone/) for more options.
 
@@ -184,6 +185,18 @@ devtap --tag cargo-test --debounce 5s -- cargo watch -x test
 
 **Multi-adapter fan-out** — when multiple AI tools are installed, build output is automatically delivered to all of them. Each tool independently consumes its own copy.
 
+**Cross-machine builds** — with a shared [GreptimeDB](#greptimedb-optional) instance, the build and the AI tool can run on different machines. Use `--session` to give both sides the same logical session name:
+
+```bash
+# Machine A (CI / remote build server)
+devtap --store greptimedb --session myproject -- make
+
+# Machine B (your laptop, running the AI tool)
+devtap mcp-serve --store greptimedb --session myproject
+```
+
+Multiple build machines can write to the same session simultaneously — each entry is tagged with its source, and the AI tool drains them all.
+
 **Session auto-detection** — when `--session auto` (default), devtap resolves the project directory like this:
 1. Git root (nearest parent with `.git`)
 2. Project marker files (nearest parent with one of: `go.mod`, `package.json`, `pyproject.toml`, `Cargo.toml`, `pom.xml`, `build.gradle`, `build.gradle.kts`, `composer.json`, `Gemfile`, `setup.py`)
@@ -209,7 +222,7 @@ devtap [flags] -- <command> [args...]
 
 Flags:
   -a, --adapter <name>       AI tool adapter (default "claude-code")
-  -s, --session <id>         Target session ("auto", "pick", or UUID)
+  -s, --session <id>         Target session ("auto", "pick", or explicit name)
       --store <backend>      Storage backend ("file" or "greptimedb")
       --filter-regex <pat>   Regex filter for output lines
       --filter-invert        Invert filter (exclude matching lines)

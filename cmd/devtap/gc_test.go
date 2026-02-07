@@ -11,9 +11,18 @@ func TestAllFilesOlderThan(t *testing.T) {
 	dir := t.TempDir()
 	cutoff := time.Now().Add(-1 * time.Hour)
 
-	// Empty directory — should return true.
+	// Empty directory with recent mtime — should return false.
+	if allFilesOlderThan(dir, cutoff) {
+		t.Error("empty dir with recent mtime should return false")
+	}
+
+	// Empty directory with old mtime — should return true.
+	old := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(dir, old, old); err != nil {
+		t.Fatal(err)
+	}
 	if !allFilesOlderThan(dir, cutoff) {
-		t.Error("empty dir should be considered all-older")
+		t.Error("empty dir with old mtime should be considered all-older")
 	}
 
 	// Create a fresh file — should return false.
@@ -25,7 +34,7 @@ func TestAllFilesOlderThan(t *testing.T) {
 	}
 
 	// Set file mtime to 2 hours ago — should return true.
-	old := time.Now().Add(-2 * time.Hour)
+	old = time.Now().Add(-2 * time.Hour)
 	if err := os.Chtimes(filepath.Join(dir, "recent.txt"), old, old); err != nil {
 		t.Fatal(err)
 	}
