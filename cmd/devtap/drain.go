@@ -29,6 +29,7 @@ For MCP-capable tools, use "devtap mcp-serve" instead.`,
 	cmd.Flags().Int("max-retries", 5, "max retries for auto-loop")
 	cmd.Flags().Int("max-lines", 10000, "max lines to drain")
 	cmd.Flags().String("filter-sql", "", "SQL WHERE clause for GreptimeDB filtering")
+	cmd.Flags().BoolP("quiet", "q", false, "raw output without source headers")
 
 	return cmd
 }
@@ -39,6 +40,7 @@ func runDrain(cmd *cobra.Command, args []string) error {
 	maxRetries, _ := cmd.Flags().GetInt("max-retries")
 	maxLines, _ := cmd.Flags().GetInt("max-lines")
 	filterSQL, _ := cmd.Flags().GetString("filter-sql")
+	quiet, _ := cmd.Flags().GetBool("quiet")
 
 	if maxLines <= 0 {
 		maxLines = 10000
@@ -46,7 +48,7 @@ func runDrain(cmd *cobra.Command, args []string) error {
 
 	// If --filter-sql is set, fall back to single-source drain against the configured store.
 	if filterSQL != "" {
-		return runDrainSingleSource(cmd, filterSQL, maxLines, event, autoLoop, maxRetries)
+		return runDrainSingleSource(cmd, filterSQL, maxLines, event, autoLoop, maxRetries, quiet)
 	}
 
 	sources, cleanup, err := resolveDrainSources(cmd)
@@ -136,6 +138,10 @@ func runDrain(cmd *cobra.Command, args []string) error {
 	}
 
 	// Plain text output
+	if quiet {
+		fmt.Println(mcp.FormatMessagesRaw(allMessages))
+		return nil
+	}
 	if multiSource {
 		var sourceLabels []string
 		for _, src := range sources {
@@ -148,7 +154,7 @@ func runDrain(cmd *cobra.Command, args []string) error {
 }
 
 // runDrainSingleSource handles drain with --filter-sql which only works with a single GreptimeDB store.
-func runDrainSingleSource(cmd *cobra.Command, filterSQL string, maxLines int, event string, autoLoop bool, maxRetries int) error {
+func runDrainSingleSource(cmd *cobra.Command, filterSQL string, maxLines int, event string, autoLoop bool, maxRetries int, quiet bool) error {
 	adapterName, _ := cmd.Flags().GetString("adapter")
 	sessionFlag, _ := cmd.Flags().GetString("session")
 
@@ -194,7 +200,11 @@ func runDrainSingleSource(cmd *cobra.Command, filterSQL string, maxLines int, ev
 		return nil
 	}
 
-	fmt.Println(mcp.FormatMessages(messages))
+	if quiet {
+		fmt.Println(mcp.FormatMessagesRaw(messages))
+	} else {
+		fmt.Println(mcp.FormatMessages(messages))
+	}
 	return nil
 }
 

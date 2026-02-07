@@ -45,6 +45,30 @@ devtap install --adapter claude-code
 
 This configures the MCP server and injects devtap instructions into your project's instruction file (e.g., `CLAUDE.md`). See [Supported Tools](#supported-tools) for all available adapters.
 
+### Skills (Optional)
+
+devtap ships with a built-in [skill](https://docs.anthropic.com/en/docs/claude-code/skills) that works as a CLI fallback when MCP is unavailable. Install it to let the agent fetch build output on demand:
+
+```bash
+# Claude Code
+mkdir -p ~/.claude/skills && cp -r skills/devtap-get-build-errors ~/.claude/skills/
+
+# Codex CLI
+mkdir -p ~/.codex/skills && cp -r skills/devtap-get-build-errors ~/.codex/skills/
+```
+
+Or fetch directly from the repo without cloning:
+
+```bash
+DEST=~/.claude/skills/devtap-get-build-errors
+mkdir -p "$DEST" && cd "$DEST"
+for f in SKILL.md scripts/get_build_errors.sh; do
+  mkdir -p "$(dirname "$f")"
+  curl -sL "https://raw.githubusercontent.com/killme2008/devtap/main/skills/devtap-get-build-errors/$f" -o "$f"
+done
+chmod +x scripts/get_build_errors.sh
+```
+
 ### Usage
 
 **Terminal A** — capture build output:
@@ -299,7 +323,9 @@ Subcommands:
   install     Configure AI tool integration (--session and --store are forwarded to MCP config)
   mcp-serve   Start MCP stdio server
   drain       Read pending messages as plain text
+                -q, --quiet      Raw output without source/tag headers
   status      Show pending message counts
+                -q, --quiet      Compact output (pending count only)
   history     Query build error history (GreptimeDB only)
                 --since <dur>    Time range (default "24h")
                 --tag <label>    Filter by tag

@@ -474,6 +474,50 @@ func TestFormatMessagesNoExitCode(t *testing.T) {
 	}
 }
 
+func TestFormatMessagesRaw(t *testing.T) {
+	exitCode := 1
+	messages := []store.LogMessage{
+		{Tag: "mypy", Stream: "stderr", Lines: []string{"main.py:5: error: Incompatible types"}, ExitCode: &exitCode},
+		{Tag: "go-build", Stream: "stdout", Lines: []string{"ok", "all good"}},
+	}
+
+	text := FormatMessagesRaw(messages)
+
+	// Should contain raw lines without [devtap: tag] headers
+	if strings.Contains(text, "[devtap:") {
+		t.Error("raw output should not contain [devtap:] headers")
+	}
+	if !strings.Contains(text, "Incompatible types") {
+		t.Error("should contain error line")
+	}
+	if !strings.Contains(text, "all good") {
+		t.Error("should contain all lines")
+	}
+	// Messages separated by blank line
+	if !strings.Contains(text, "Incompatible types\n\nok") {
+		t.Errorf("messages should be separated by blank line, got:\n%s", text)
+	}
+}
+
+func TestFormatMessagesRawEmpty(t *testing.T) {
+	text := FormatMessagesRaw(nil)
+	if text != "" {
+		t.Errorf("empty input should produce empty output, got: %q", text)
+	}
+}
+
+func TestFormatMessagesRawSkipsEmptyLines(t *testing.T) {
+	messages := []store.LogMessage{
+		{Tag: "a", Lines: []string{}},
+		{Tag: "b", Lines: []string{"hello"}},
+	}
+
+	text := FormatMessagesRaw(messages)
+	if text != "hello" {
+		t.Errorf("expected %q, got %q", "hello", text)
+	}
+}
+
 // --- Multi-source tests ---
 
 // errStore implements store.Store and returns configurable errors on Drain/Status.

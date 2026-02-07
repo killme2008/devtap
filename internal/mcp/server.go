@@ -362,6 +362,27 @@ func (s *Server) writeJSON(v any) {
 	_, _ = fmt.Fprintf(s.output, "%s\n", data)
 }
 
+// FormatMessagesRaw outputs raw lines without [devtap: tag] headers.
+// Messages are separated by blank lines.
+func FormatMessagesRaw(messages []store.LogMessage) string {
+	var sb strings.Builder
+	wroteAny := false
+	for _, msg := range messages {
+		if len(msg.Lines) == 0 {
+			continue
+		}
+		if wroteAny {
+			sb.WriteString("\n")
+		}
+		for _, line := range msg.Lines {
+			sb.WriteString(line)
+			sb.WriteString("\n")
+		}
+		wroteAny = true
+	}
+	return strings.TrimRight(sb.String(), "\n")
+}
+
 // FormatMessages converts log messages into a human-readable string.
 func FormatMessages(messages []store.LogMessage) string {
 	var sb strings.Builder
