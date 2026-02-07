@@ -70,6 +70,8 @@ This turns devtap into a general-purpose human→agent message channel — no co
 
 ## How It Works
 
+**Local mode** (default, file-based):
+
 ```
 Terminal A (Claude Code)          Terminal B (build/dev)
 ┌──────────────────┐             ┌────────────────────────────┐
@@ -82,7 +84,24 @@ Terminal A (Claude Code)          Terminal B (build/dev)
                                  └────────────────────────────┘
 ```
 
-1. `devtap install` configures the MCP server for your AI tool
+**Cross-machine mode** (with [GreptimeDB](#greptimedb-optional)):
+
+```
+Your laptop                       CI / remote build server
+┌──────────────────┐             ┌────────────────────────────┐
+│  Claude Code     │             │  devtap -- make            │
+│  get_build_errors│             │                            │
+│                  │             │  captures stdout/stderr    │
+│  receives errors,│             └─────────────┬──────────────┘
+│  fixes code      │                           │ write
+└────────┬─────────┘                           ▼
+         │ drain              ┌────────────────────────────┐
+         └───────────────────►│        GreptimeDB          │
+                              │  (shared session store)    │
+                              └────────────────────────────┘
+```
+
+1. `devtap install` configures the MCP server for your AI tool (pass `--session` and `--store` for cross-machine setup)
 2. `devtap -- <cmd>` runs your command, captures stdout/stderr, fans out to all registered adapters
 3. Each AI tool independently drains its own copy via `get_build_errors`
 4. AI sees the errors and fixes them
