@@ -24,7 +24,7 @@ func TestCollapseSuccessful_ExitZero(t *testing.T) {
 	if len(result[0].Lines) != 1 {
 		t.Fatalf("expected 1 line, got %d", len(result[0].Lines))
 	}
-	want := "(3 lines of output omitted — build succeeded)"
+	want := "(3 lines of output omitted — run succeeded)"
 	if result[0].Lines[0] != want {
 		t.Errorf("got %q, want %q", result[0].Lines[0], want)
 	}
@@ -152,7 +152,7 @@ func TestCollapseSuccessful_SameTagFailThenSuccess(t *testing.T) {
 	}
 
 	// Third: collapsed success summary
-	want := "(3 lines of output omitted — build succeeded)"
+	want := "(3 lines of output omitted — run succeeded)"
 	if len(result[2].Lines) != 1 || result[2].Lines[0] != want {
 		t.Errorf("success run should be collapsed, got %v", result[2].Lines)
 	}
@@ -237,7 +237,7 @@ func TestCollapseSuccessful_EmptyTagDefaultsBuild(t *testing.T) {
 	if len(result) != 1 {
 		t.Fatalf("expected 1 message (collapsed), got %d", len(result))
 	}
-	want := "(1 line of output omitted — build succeeded)"
+	want := "(1 line of output omitted — run succeeded)"
 	if result[0].Lines[0] != want {
 		t.Errorf("got %q, want %q", result[0].Lines[0], want)
 	}

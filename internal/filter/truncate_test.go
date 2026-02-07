@@ -60,7 +60,7 @@ func TestTruncateTailBiased(t *testing.T) {
 }
 
 func TestTruncateDistinctLines(t *testing.T) {
-	// 20 distinct lines, maxLines=6 → with 0.8 tail ratio: 1 head + 4 tail (int(6*0.8)=4)
+	// 20 distinct lines, maxLines=6 → with 0.8 tail ratio: 2 head + 4 tail (int(6*0.8)=4)
 	lines := make([]string, 20)
 	for i := range lines {
 		lines[i] = fmt.Sprintf("line-%d", i)
@@ -97,6 +97,19 @@ func TestTruncateSingleMax(t *testing.T) {
 	}
 	if result[0] != "c" {
 		t.Errorf("expected last line %q, got %q", "c", result[0])
+	}
+}
+
+func TestTruncateSingleMaxWithDuplicates(t *testing.T) {
+	// maxLines=1 with repeated lines should return the last real line,
+	// not a "(repeated N times)" marker from dedup.
+	lines := []string{"error: foo", "error: foo", "error: foo"}
+	result := Truncate(lines, 1)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 line, got %d: %v", len(result), result)
+	}
+	if result[0] != "error: foo" {
+		t.Errorf("expected last real line, got %q", result[0])
 	}
 }
 

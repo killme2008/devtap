@@ -84,5 +84,5 @@ func collapseMessage(lineCount int) string {
 	if lineCount == 1 {
 		noun = "line"
 	}
-	return fmt.Sprintf("(%d %s of output omitted — build succeeded)", lineCount, noun)
+	return fmt.Sprintf("(%d %s of output omitted — run succeeded)", lineCount, noun)
 }

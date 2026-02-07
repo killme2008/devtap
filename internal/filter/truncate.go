@@ -13,15 +13,20 @@ const tailRatio = 0.8
 //
 // maxLines <= 0 means no truncation.
 func Truncate(lines []string, maxLines int) []string {
-	lines = dedup(lines)
-
-	if maxLines <= 0 || len(lines) <= maxLines {
-		return lines
+	if maxLines <= 0 {
+		return dedup(lines)
 	}
 
 	// Budget=1: no room for head + omission marker + tail. Just keep the last line.
-	if maxLines == 1 {
+	// Done before dedup to avoid returning a "(repeated N times)" marker.
+	if maxLines == 1 && len(lines) > 1 {
 		return lines[len(lines)-1:]
+	}
+
+	lines = dedup(lines)
+
+	if len(lines) <= maxLines {
+		return lines
 	}
 
 	tail := int(float64(maxLines) * tailRatio)
