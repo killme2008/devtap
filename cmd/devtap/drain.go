@@ -40,6 +40,10 @@ func runDrain(cmd *cobra.Command, args []string) error {
 	maxLines, _ := cmd.Flags().GetInt("max-lines")
 	filterSQL, _ := cmd.Flags().GetString("filter-sql")
 
+	if maxLines <= 0 {
+		maxLines = 10000
+	}
+
 	// If --filter-sql is set, fall back to single-source drain against the configured store.
 	if filterSQL != "" {
 		return runDrainSingleSource(cmd, filterSQL, maxLines, event, autoLoop, maxRetries)
@@ -53,6 +57,8 @@ func runDrain(cmd *cobra.Command, args []string) error {
 
 	multiSource := len(sources) > 1
 	var allMessages []store.LogMessage
+	var drainErrors []string
+	successCount := 0
 
 	// Track remaining message budget. Drain treats its limit as a message
 	// count, so the budget uses the same unit. Line-level truncation is
@@ -67,11 +73,13 @@ func runDrain(cmd *cobra.Command, args []string) error {
 		messages, err := src.Store.Drain(src.SessionID, remaining)
 		if err != nil {
 			if multiSource {
+				drainErrors = append(drainErrors, fmt.Sprintf("source %q: %v", src.Label, err))
 				fmt.Fprintf(cmd.ErrOrStderr(), "devtap: source %q unreachable: %v\n", src.Label, err)
 				continue
 			}
 			return fmt.Errorf("drain: %w", err)
 		}
+		successCount++
 
 		if multiSource {
 			for i := range messages {
@@ -85,6 +93,15 @@ func runDrain(cmd *cobra.Command, args []string) error {
 
 		allMessages = append(allMessages, messages...)
 		remaining -= len(messages)
+	}
+
+	// All sources failed — return error rather than silently succeeding.
+	// Exception: Stop+autoLoop should fall through so the user isn't blocked.
+	if multiSource && successCount == 0 && len(drainErrors) > 0 {
+		if event != "Stop" || !autoLoop {
+			return fmt.Errorf("all sources failed: %s", strings.Join(drainErrors, "; "))
+		}
+		fmt.Fprintf(cmd.ErrOrStderr(), "devtap: all sources failed, allowing stop\n")
 	}
 
 	if multiSource && len(allMessages) > 0 {

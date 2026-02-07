@@ -66,6 +66,31 @@ func openStoreByBackend(cfg *config.Config, backend, storeDir, adapter string) (
 	}
 }
 
+// openStoreStrict opens a store without fallback. Unlike openStoreByBackend,
+// a greptimedb failure returns an error instead of silently falling back to
+// the file store. This is appropriate for reader paths (drain / MCP) where
+// falling back would silently drain the wrong data.
+func openStoreStrict(cfg *config.Config, backend, storeDir, adapter string) (store.Store, error) {
+	switch backend {
+	case "", "file":
+		return filestore.New(storeDir, adapter)
+	case "greptimedb":
+		gs, err := greptimestore.New(cfg.Store.GreptimeDB, storeDir, adapter)
+		if err != nil {
+			return nil, fmt.Errorf("greptimedb: %w", err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := gs.Ping(ctx); err != nil {
+			_ = gs.Close()
+			return nil, fmt.Errorf("greptimedb ping: %w", err)
+		}
+		return gs, nil
+	default:
+		return nil, fmt.Errorf("unknown store backend: %q", backend)
+	}
+}
+
 // resolveDrainSources returns 1 or 2 drain sources for the MCP server and drain command.
 //
 // - "configured" source: from CLI --store/--session flags (or global config defaults)
@@ -108,10 +133,10 @@ func resolveDrainSources(cmd *cobra.Command) ([]mcp.DrainSource, func(), error) 
 		}
 	}
 
-	configuredStore, err := openStoreByBackend(cfg, configuredBackend, storeDir, adapterName)
-	if err != nil {
-		return nil, nil, fmt.Errorf("open configured store: %w", err)
-	}
+	// Use strict open for the configured store so that a greptimedb failure
+	// is surfaced rather than silently falling back to the local file store
+	// (which would drain wrong data). On failure, degrade to local-only.
+	configuredStore, configuredErr := openStoreStrict(cfg, configuredBackend, storeDir, adapterName)
 
 	// Resolve "local" source: always use global config backend + auto-detected session.
 	localBackend := cfg.Store.Backend
@@ -126,6 +151,20 @@ func resolveDrainSources(cmd *cobra.Command) ([]mcp.DrainSource, func(), error) 
 			return "file"
 		}
 		return b
+	}
+
+	// Configured store unavailable — fall back to local-only single source.
+	if configuredErr != nil {
+		fmt.Fprintf(os.Stderr, "devtap: configured store %q unavailable (%v), using local only\n",
+			configuredBackend, configuredErr)
+		localStore, err := openStoreByBackend(cfg, localBackend, storeDir, adapterName)
+		if err != nil {
+			return nil, nil, fmt.Errorf("open local store: %w", err)
+		}
+		cleanup := func() { _ = localStore.Close() }
+		return []mcp.DrainSource{
+			{Store: localStore, SessionID: localSession, Label: localSession},
+		}, cleanup, nil
 	}
 
 	// If both sources resolve to the same (backend, session), single source.
