@@ -56,7 +56,29 @@ AI tool          ←  MCP server (get_build_errors) ←  store.Drain()  ←  per
 - **Host field**: `LogMessage.Host` is set via cached `os.Hostname()` at capture startup. Used for multi-source origin labeling. GreptimeDB uses `COALESCE(host, '')` for backward compat with pre-existing rows.
 - **File store IPC**: `pending.jsonl` → atomic rename to `pending.jsonl.draining` → read → delete. Leftover lines written back to prevent data loss.
 - **Config merge**: `.mcp.json` / `settings.json` / `opencode.json` reads existing → upserts devtap entry → writes back. Never overwrites other tools' config.
-- **Instruction injection**: Appends `<!-- devtap:start -->` / `<!-- devtap:end -->` block to project instruction files. Idempotent via marker detection.
+- **Instruction injection**: Appends `<!-- devtap:start -->
+## devtap
+
+devtap captures build/dev output from a separate terminal and delivers it here via MCP.
+
+**You MUST check devtap in these situations:**
+- At the start of each new task or conversation turn
+- Before writing or editing any code
+- After being told that a build, test, or dev server has new output
+
+**Use this call order:**
+1. Call "get_build_status" once at the start of the turn.
+2. Call "get_build_errors" when status reports pending messages, when the user says new output arrived, or before the first code edit in the turn.
+
+**Call limit per turn:** call "get_build_errors" at most once per turn unless new output is reported.
+
+**Multi-source mode:** when devtap drains from multiple sources, tags are prefixed with "host/label |" (for example, "[devtap: myhost/local | make]"). "host" is the machine name, "label" identifies the source. Show these prefixes as-is. If output includes source warnings (for example, source unreachable), show those warnings verbatim and continue with output from reachable sources.
+
+**Output format:** when "get_build_errors" returns content:
+If build succeeded, acknowledge briefly (do not repeat the output).
+If build failed, present the error output verbatim in a fenced code block.
+Then add one line: "Next action: <what you will do>".
+<!-- devtap:end -->` block to project instruction files. Idempotent via marker detection.
 - **Session encoding**: `session.EncodeDir("/foo/bar")` → `"-foo-bar"`, shared across adapters.
 - **Capture modes**: `runner.go` (batch, flush every 50 lines) vs `longrun.go` (debounce timer, for dev servers).
 - **Scanner buffers**: 64KB initial / 1MB max (`internal/capture/errors.go`). On scanner error (line >1MB), pipe is drained to discard to prevent child process deadlock.
