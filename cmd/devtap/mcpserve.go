@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -38,6 +39,11 @@ Exposed tools:
 				return fmt.Errorf("resolve drain sources: %w", err)
 			}
 			defer cleanup()
+
+			if len(sources) > 0 {
+				fmt.Fprintf(os.Stderr, "devtap: mcp-serve sources=%d session=%s\n",
+					len(sources), sources[0].SessionID)
+			}
 
 			// Pre-register adapter dir for each source so writers can discover us.
 			if storeDir, err := defaultStoreDir(); err == nil {

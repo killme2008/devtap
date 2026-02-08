@@ -111,6 +111,14 @@ func resolveSession(adapterName, sessionFlag string) (string, error) {
 	}
 	projectDir := resolveProjectDir(cwd)
 
+	// "auto": deterministic session ID from project directory.
+	// Avoids volatile mtime-based selection that breaks when
+	// multiple Claude Code sessions exist for the same project.
+	if sessionFlag == "auto" {
+		return session.EncodeDir(projectDir), nil
+	}
+
+	// "pick": interactive session selection
 	a := getAdapter(adapterName)
 	sessions, err := a.DiscoverSessions(projectDir)
 	if err != nil {
@@ -118,9 +126,6 @@ func resolveSession(adapterName, sessionFlag string) (string, error) {
 	}
 	if len(sessions) == 0 {
 		return session.EncodeDir(projectDir), nil
-	}
-	if sessionFlag == "auto" {
-		return sessions[0].ID, nil
 	}
 	return session.Pick(sessions)
 }
