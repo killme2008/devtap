@@ -153,17 +153,24 @@ func resolveDrainSources(cmd *cobra.Command) ([]mcp.DrainSource, func(), error) 
 		return b
 	}
 
-	// Configured store unavailable — fall back to local-only single source.
+	// Configured store unavailable — use lazy wrapper that retries on drain.
 	if configuredErr != nil {
-		fmt.Fprintf(os.Stderr, "devtap: configured store %q unavailable (%v), using local only\n",
+		fmt.Fprintf(os.Stderr, "devtap: configured store %q unavailable (%v), will retry on drain\n",
 			configuredBackend, configuredErr)
+		lazy := newLazyStore(func() (store.Store, error) {
+			return openStoreStrict(cfg, configuredBackend, storeDir, adapterName)
+		})
 		localStore, err := openStoreByBackend(cfg, localBackend, storeDir, adapterName)
 		if err != nil {
 			return nil, nil, fmt.Errorf("open local store: %w", err)
 		}
-		cleanup := func() { _ = localStore.Close() }
+		cleanup := func() {
+			_ = localStore.Close()
+			_ = lazy.Close()
+		}
 		return []mcp.DrainSource{
-			{Store: localStore, SessionID: localSession, Label: localSession},
+			{Store: localStore, SessionID: localSession, Label: "local"},
+			{Store: lazy, SessionID: configuredSession, Label: configuredSession},
 		}, cleanup, nil
 	}
 
