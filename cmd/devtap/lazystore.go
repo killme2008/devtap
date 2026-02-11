@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -19,6 +20,7 @@ type lazyStore struct {
 	inner       store.Store
 	connectFn   func() (store.Store, error)
 	lastAttempt time.Time
+	lastErr     error
 	cooldown    time.Duration
 	closed      bool
 }
@@ -40,21 +42,24 @@ func (ls *lazyStore) ensureConnected() error {
 		return nil
 	}
 	if !ls.lastAttempt.IsZero() && time.Since(ls.lastAttempt) < ls.cooldown {
-		return errors.New("store unavailable (cooldown)")
+		return fmt.Errorf("store unavailable (cooldown): %w", ls.lastErr)
 	}
 	ls.lastAttempt = time.Now()
 	s, err := ls.connectFn()
 	if err != nil {
+		ls.lastErr = err
 		return err
 	}
+	ls.lastErr = nil
 	ls.inner = s
 	return nil
 }
 
 // reset closes the inner store and nils it out so the next call retries.
-// Does NOT update lastAttempt — the next ensureConnected checks elapsed time
-// since the original connection, which is typically >cooldown, allowing an
-// immediate retry after detecting failure.
+// Does NOT clear lastAttempt — the cooldown still applies, which prevents
+// hammering if the store accepts connections but fails on queries. For
+// long-running processes (MCP server), the elapsed time since the original
+// connect is typically >cooldown, so the retry is effectively immediate.
 func (ls *lazyStore) reset() {
 	if ls.inner != nil {
 		_ = ls.inner.Close()

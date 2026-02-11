@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -74,13 +75,20 @@ func TestLazyStore_CooldownPreventsRapidRetry(t *testing.T) {
 		t.Fatalf("expected 1 connect call, got %d", connectCalls)
 	}
 
-	// Second call within cooldown: should NOT retry.
+	// Second call within cooldown: should NOT retry, and error should
+	// include the original connection error for diagnostics.
 	_, err = ls.Drain("s", 10)
 	if err == nil {
 		t.Fatal("expected error")
 	}
 	if connectCalls != 1 {
 		t.Fatalf("expected still 1 connect call (cooldown), got %d", connectCalls)
+	}
+	if !strings.Contains(err.Error(), "cooldown") {
+		t.Fatalf("expected cooldown in error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "connection refused") {
+		t.Fatalf("expected original error in cooldown message, got: %v", err)
 	}
 }
 
